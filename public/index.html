@@ -146,6 +146,30 @@
 
     .stat-pill .label { color: var(--text-secondary); }
 
+    .btn-backup {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 100px;
+      background: var(--surface);
+      box-shadow: var(--border-shadow);
+      border: none;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+    }
+
+    .btn-backup:hover {
+      background: var(--indigo);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(91, 91, 214, 0.25);
+    }
+
+    .btn-backup:active { transform: scale(0.96); }
+
     /* ======= MAIN LAYOUT ======= */
     .main {
       position: relative;
@@ -790,6 +814,9 @@
           <span class="num" id="totalRedeems">0</span>
           <span class="label">lần nhập</span>
         </div>
+        <button class="btn-backup" onclick="downloadBackup()" title="Tải backup dữ liệu">
+          💾 Backup
+        </button>
       </div>
     </div>
   </header>
@@ -945,6 +972,11 @@
         if (e.key === 'Enter') redeemAll();
       });
     });
+
+    // ============== BACKUP ==============
+    function downloadBackup() {
+      window.location.href = '/api/export';
+    }
 
     // ============== TOAST ==============
     function showToast(message, type = 'info') {
