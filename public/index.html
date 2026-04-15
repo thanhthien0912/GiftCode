@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play Together VNG — Auto Giftcode</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #f6f5f1;
+      --bg-warm: #efeee8;
+      --surface: #ffffff;
+      --surface-hover: #faf9f7;
+      --border-shadow: 0px 0px 0px 1px rgba(0,0,0,0.06), 0px 1px 2px -1px rgba(0,0,0,0.06), 0px 2px 4px 0px rgba(0,0,0,0.04);
+      --border-shadow-hover: 0px 0px 0px 1px rgba(0,0,0,0.08), 0px 2px 8px -2px rgba(0,0,0,0.08), 0px 4px 12px 0px rgba(0,0,0,0.06);
+      --border-shadow-lifted: 0px 0px 0px 1px rgba(0,0,0,0.06), 0px 4px 16px -4px rgba(0,0,0,0.1), 0px 8px 24px 0px rgba(0,0,0,0.06);
+      --text: #1a1815;
+      --text-secondary: #6b6560;
+      --text-tertiary: #9b958e;
+      --coral: #e8614d;
+      --coral-soft: #fef0ee;
+      --coral-hover: #d44f3c;
+      --teal: #1a9c8e;
+      --teal-soft: #edfaf8;
+      --amber: #d4940a;
+      --amber-soft: #fef9ec;
+      --indigo: #5b5bd6;
+      --indigo-soft: #f0f0ff;
+      --red: #dc3b3b;
+      --red-soft: #fef2f2;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ======= BACKGROUND TEXTURE ======= */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(232, 97, 77, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(26, 156, 142, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 60% 30%, rgba(91, 91, 214, 0.03) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ======= HEADER ======= */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(246, 245, 241, 0.8);
+      backdrop-filter: blur(20px) saturate(1.2);
+      -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, var(--coral) 0%, #f2836e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(232, 97, 77, 0.25);
+      flex-shrink: 0;
+    }
+
+    .logo-text h1 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+
+    .logo-text span {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      letter-spacing: 0.2px;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 6px;
+    }
+
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: 100px;
+      background: var(--surface);
+      box-shadow: var(--border-shadow);
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    .stat-pill .num {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .stat-pill.players .num { color: var(--indigo); }
+    .stat-pill.redeems .num { color: var(--teal); }
+
+    .stat-pill .label { color: var(--text-secondary); }
+
+    /* ======= MAIN LAYOUT ======= */
+    .main {
+      position: relative;
+      z-index: 1;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .full-width { grid-column: 1 / -1; }
+
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+      .header-inner { padding: 12px 16px; }
+      .main { padding: 16px 16px 40px; }
+    }
+
+    /* ======= CARD ======= */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-xl); /* outer = 20px */
+      box-shadow: var(--border-shadow);
+      overflow: hidden;
+      transition-property: box-shadow;
+      transition-duration: 200ms;
+      transition-timing-function: ease-out;
+    }
+
+    .card:hover {
+      box-shadow: var(--border-shadow-hover);
+    }
+
+    .card-head {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .card-label {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -0.1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-label .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px; /* inner = 20 - 20 + 8 ≈ concentric with padding */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .card-label .icon.coral { background: var(--coral-soft); }
+    .card-label .icon.teal { background: var(--teal-soft); }
+    .card-label .icon.indigo { background: var(--indigo-soft); }
+    .card-label .icon.amber { background: var(--amber-soft); }
+
+    .card-content {
+      padding: 20px;
+    }
+
+    /* ======= INPUTS ======= */
+    input, textarea, select {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--bg);
+      border: 1.5px solid rgba(0,0,0,0.08);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 500;
+      outline: none;
+      transition-property: border-color, box-shadow;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--coral);
+      box-shadow: 0 0 0 3px rgba(232, 97, 77, 0.1);
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: var(--text-tertiary);
+      font-weight: 400;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    /* ======= BUTTONS ======= */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 20px;
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition-property: transform, box-shadow, background;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+      position: relative;
+      /* min hit area 40x40 */
+    }
+
+    .btn:active:not(:disabled) { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-coral {
+      background: var(--coral);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(232, 97, 77, 0.3), 0 4px 12px rgba(232, 97, 77, 0.15);
+    }
+    .btn-coral:hover:not(:disabled) {
+      background: var(--coral-hover);
+      box-shadow: 0 2px 6px rgba(232, 97, 77, 0.35), 0 6px 20px rgba(232, 97, 77, 0.2);
+    }
+
+    .btn-teal {
+      background: var(--teal);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(26, 156, 142, 0.25);
+    }
+    .btn-teal:hover:not(:disabled) { background: #178a7e; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--border-shadow);
+    }
+    .btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+    .btn-danger-sm {
+      background: var(--red-soft);
+      color: var(--red);
+      padding: 6px 10px;
+      font-size: 11.5px;
+      border-radius: var(--radius-sm);
+    }
+    .btn-danger-sm:hover { background: #fde8e8; }
+
+    /* ======= REDEEM SECTION ======= */
+    .redeem-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .redeem-row .field { flex: 1; }
+
+    .code-input {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .delay-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+
+    .delay-control input {
+      width: 64px;
+      padding: 6px 8px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ======= PROGRESS ======= */
+    .progress-wrap {
+      margin-top: 16px;
+      display: none;
+    }
+
+    .progress-wrap.active {
+      display: block;
+      animation: fadeUp 300ms ease-out;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: var(--bg-warm);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--coral), var(--teal));
+      border-radius: 3px;
+      transition-property: width;
+      transition-duration: 400ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ======= TABS ======= */
+    .tab-group {
+      display: flex;
+      gap: 2px;
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+
+    .tab-btn {
+      padding: 5px 14px;
+      border-radius: 6px; /* concentric: 8 - 3 ≈ 5..6 */
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-tertiary);
+      border: none;
+      font-family: inherit;
+      transition-property: color, background;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+    }
+
+    .tab-btn:hover { color: var(--text-secondary); }
+
+    .tab-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* ======= ADD FORM ======= */
+    .add-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .add-row input { flex: 1; }
+
+    .bulk-area {
+      min-height: 72px;
+      resize: vertical;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+
+    .bulk-footer {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* ======= PLAYER LIST ======= */
+    .player-scroll {
+      max-height: 380px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.1) transparent;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-radius: var(--radius-md); /* inner: 20 - 20 = concentric */
+      margin-bottom: 4px;
+      transition-property: background;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+
+    .player-row:hover { background: var(--bg); }
+
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--indigo);
+      background: var(--indigo-soft);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    .player-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .player-meta {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ======= EMPTY STATE ======= */
+    .empty {
+      text-align: center;
+      padding: 36px 20px;
+    }
+
+    .empty .glyph {
+      font-size: 40px;
+      margin-bottom: 10px;
+      opacity: 0.7;
+    }
+
+    .empty .msg {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .empty .sub {
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      margin-top: 3px;
+    }
+
+    /* ======= HISTORY ======= */
+    .history-scroll {
+      max-height: 380px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.1) transparent;
+    }
+
+    .history-row {
+      padding: 11px 12px;
+      margin-bottom: 4px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition-property: background;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+
+    .history-row:hover { background: var(--bg); }
+
+    .history-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--coral);
+      letter-spacing: 0.3px;
+    }
+
+    .history-time {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-pills {
+      display: flex;
+      gap: 8px;
+      margin-top: 5px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pill-ok { color: var(--teal); }
+    .pill-fail { color: var(--red); }
+    .pill-total { color: var(--text-tertiary); }
+
+    /* ======= RESULTS ======= */
+    .results-card {
+      display: none;
+    }
+
+    .results-card.active {
+      display: block;
+      animation: fadeUp 350ms ease-out;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .summary-tile {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      text-align: center;
+    }
+
+    .summary-tile .val {
+      font-size: 26px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .summary-tile .lbl {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 5px;
+    }
+
+    .summary-tile.s-total { background: var(--indigo-soft); }
+    .summary-tile.s-total .val { color: var(--indigo); }
+    .summary-tile.s-total .lbl { color: var(--indigo); opacity: 0.6; }
+
+    .summary-tile.s-ok { background: var(--teal-soft); }
+    .summary-tile.s-ok .val { color: var(--teal); }
+    .summary-tile.s-ok .lbl { color: var(--teal); opacity: 0.6; }
+
+    .summary-tile.s-fail { background: var(--red-soft); }
+    .summary-tile.s-fail .val { color: var(--red); }
+    .summary-tile.s-fail .lbl { color: var(--red); opacity: 0.6; }
+
+    .result-scroll {
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.1) transparent;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      margin-bottom: 4px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+    }
+
+    .result-row.ok { background: var(--teal-soft); }
+    .result-row.fail { background: var(--red-soft); }
+
+    .result-tag {
+      padding: 3px 9px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .result-tag.ok { background: var(--teal); color: #fff; }
+    .result-tag.fail { background: var(--red); color: #fff; }
+
+    .result-id {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      min-width: 90px;
+      color: var(--text);
+    }
+
+    .result-msg {
+      color: var(--text-secondary);
+      font-weight: 500;
+      flex: 1;
+    }
+
+    /* ======= TOAST ======= */
+    .toast-stack {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: var(--border-shadow-lifted);
+      animation: toastSlide 300ms cubic-bezier(0.2, 0, 0, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.success { background: var(--teal-soft); color: var(--teal); border-left: 3px solid var(--teal); }
+    .toast.error { background: var(--red-soft); color: var(--red); border-left: 3px solid var(--red); }
+    .toast.info { background: var(--indigo-soft); color: var(--indigo); border-left: 3px solid var(--indigo); }
+
+    .toast-exit {
+      animation: toastOut 200ms ease-in forwards;
+    }
+
+    /* ======= SPINNER ======= */
+    .spinner {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.5s linear infinite;
+    }
+
+    /* ======= STAGGER ANIMATION ======= */
+    .stagger-item {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(4px);
+      animation: fadeUp 400ms ease-out forwards;
+    }
+    .stagger-item:nth-child(1) { animation-delay: 0ms; }
+    .stagger-item:nth-child(2) { animation-delay: 80ms; }
+    .stagger-item:nth-child(3) { animation-delay: 160ms; }
+    .stagger-item:nth-child(4) { animation-delay: 240ms; }
+
+    /* ======= KEYFRAMES ======= */
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes toastSlide {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); filter: blur(4px); }
+      to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    @keyframes toastOut {
+      to { opacity: 0; transform: translateY(-8px); filter: blur(4px); }
+    }
+
+    /* ======= WEBKIT SCROLLBAR ======= */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
+    /* ======= CUSTOM SELECT STYLE ======= */
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239b958e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast -->
+  <div class="toast-stack" id="toastContainer"></div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-mark">🎮</div>
+        <div class="logo-text">
+          <h1>Play Together VNG</h1>
+          <span>Auto Giftcode Redeemer</span>
+        </div>
+      </div>
+      <div class="stats-bar">
+        <div class="stat-pill players">
+          <span class="num" id="totalPlayers">0</span>
+          <span class="label">người chơi</span>
+        </div>
+        <div class="stat-pill redeems">
+          <span class="num" id="totalRedeems">0</span>
+          <span class="label">lần nhập</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="grid">
+
+      <!-- ====== REDEEM ====== -->
+      <div class="card full-width stagger-item">
+        <div class="card-head">
+          <div class="card-label">
+            <span class="icon coral">⚡</span>
+            Nhập Giftcode
+          </div>
+          <div class="delay-control">
+            <span>Delay</span>
+            <input type="number" id="delayMs" value="1500" min="500" step="100">
+            <span>ms</span>
+          </div>
+        </div>
+        <div class="card-content">
+          <div class="redeem-row">
+            <div class="field">
+              <label class="field-label">Mã Giftcode</label>
+              <input type="text" id="codeInput" class="code-input" placeholder="VD: PLAYTOGETHER2026" autofocus>
+            </div>
+            <button class="btn btn-coral" id="redeemBtn" onclick="redeemAll()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+              Nhập cho tất cả
+            </button>
+          </div>
+          <div class="progress-wrap" id="progressContainer">
+            <div class="progress-track">
+              <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-meta">
+              <span id="progressText">Đang nhập...</span>
+              <span id="progressCount">0/0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== PLAYERS ====== -->
+      <div class="card stagger-item">
+        <div class="card-head">
+          <div class="card-label">
+            <span class="icon indigo">👥</span>
+            Danh sách người chơi
+          </div>
+          <div class="tab-group">
+            <button class="tab-btn active" onclick="switchTab('single', this)">Thêm 1</button>
+            <button class="tab-btn" onclick="switchTab('bulk', this)">Nhập nhiều</button>
+          </div>
+        </div>
+        <div class="card-content">
+          <!-- Single add -->
+          <div id="singleForm">
+            <div class="add-row">
+              <input type="text" id="roleIdInput" placeholder="ID nhân vật..." style="flex:1.2">
+              <input type="text" id="roleNameInput" placeholder="Tên (tùy chọn)..." style="flex:1">
+              <button class="btn btn-teal" onclick="addPlayer()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Thêm
+              </button>
+            </div>
+          </div>
+
+          <!-- Bulk add -->
+          <div id="bulkForm" style="display:none;">
+            <textarea class="bulk-area" id="bulkInput" placeholder="Nhập nhiều người chơi, mỗi dòng 1 người&#10;Định dạng: ID:Tên hoặc chỉ ID&#10;VD:&#10;12345:Minh&#10;67890:Hùng&#10;11111"></textarea>
+            <div class="bulk-footer">
+              <button class="btn btn-teal" onclick="bulkAddPlayers()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Import tất cả
+              </button>
+            </div>
+          </div>
+
+          <!-- Player list -->
+          <div class="player-scroll" id="playerList">
+            <div class="empty">
+              <div class="glyph">👻</div>
+              <div class="msg">Chưa có người chơi nào</div>
+              <div class="sub">Thêm ID nhân vật để bắt đầu</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== HISTORY ====== -->
+      <div class="card stagger-item">
+        <div class="card-head">
+          <div class="card-label">
+            <span class="icon amber">📋</span>
+            Lịch sử nhập code
+          </div>
+          <button class="btn btn-ghost" onclick="clearHistory()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            Xóa
+          </button>
+        </div>
+        <div class="card-content">
+          <div class="history-scroll" id="historyList">
+            <div class="empty">
+              <div class="glyph">📭</div>
+              <div class="msg">Chưa có lịch sử</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== RESULTS ====== -->
+      <div class="card full-width results-card" id="resultsSection">
+        <div class="card-head">
+          <div class="card-label">
+            <span class="icon teal">📊</span>
+            Kết quả nhập code
+          </div>
+          <button class="btn btn-ghost" onclick="hideResults()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Đóng
+          </button>
+        </div>
+        <div class="card-content">
+          <div class="summary-row" id="summaryGrid"></div>
+          <div class="result-scroll" id="resultsList"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ============== STATE ==============
+    let players = [];
+    let history = [];
+    let isRedeeming = false;
+
+    // ============== INIT ==============
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPlayers();
+      loadHistory();
+
+      document.getElementById('roleIdInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') addPlayer();
+      });
+      document.getElementById('roleNameInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') addPlayer();
+      });
+      document.getElementById('codeInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') redeemAll();
+      });
+    });
+
+    // ============== TOAST ==============
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      const icons = { success: '✓', error: '✕', info: 'ℹ' };
+      toast.innerHTML = `<span style="font-weight:800">${icons[type] || 'ℹ'}</span> ${escapeHtml(message)}`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('toast-exit');
+        setTimeout(() => toast.remove(), 200);
+      }, 2800);
+    }
+
+    // ============== TABS ==============
+    function switchTab(tab, el) {
+      el.closest('.tab-group').querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('singleForm').style.display = tab === 'single' ? 'block' : 'none';
+      document.getElementById('bulkForm').style.display = tab === 'bulk' ? 'block' : 'none';
+    }
+
+    // ============== PLAYERS ==============
+    async function loadPlayers() {
+      const res = await fetch('/api/players');
+      const data = await res.json();
+      if (data.success) {
+        players = data.data;
+        renderPlayers();
+        updateStats();
+      }
+    }
+
+    function renderPlayers() {
+      const list = document.getElementById('playerList');
+      if (players.length === 0) {
+        list.innerHTML = `
+          <div class="empty">
+            <div class="glyph">👻</div>
+            <div class="msg">Chưa có người chơi nào</div>
+            <div class="sub">Thêm ID nhân vật để bắt đầu</div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = players.map((p, i) => `
+        <div class="player-row">
+          <div class="player-left">
+            <div class="player-num">${i + 1}</div>
+            <div>
+              <div class="player-name">${escapeHtml(p.roleName)}${p.roleName !== p.roleId ? '' : ' <span style="color:var(--text-tertiary);font-weight:500;font-size:11px">(chưa đặt tên)</span>'}</div>
+              <div class="player-meta">ID: ${escapeHtml(p.roleId)} · Server ${p.serverId}</div>
+            </div>
+          </div>
+          <button class="btn btn-danger-sm" onclick="removePlayer('${p.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            Xóa
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function addPlayer() {
+      const input = document.getElementById('roleIdInput');
+      const nameInput = document.getElementById('roleNameInput');
+      const roleId = input.value.trim();
+      const roleName = nameInput.value.trim() || roleId;
+      if (!roleId) return showToast('Vui lòng nhập ID nhân vật', 'error');
+
+      const res = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId, roleName, serverId: '2' })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        input.value = '';
+        nameInput.value = '';
+        showToast(`Đã thêm: ${roleName}${roleName !== roleId ? ' (ID: ' + roleId + ')' : ''}`, 'success');
+        loadPlayers();
+      } else {
+        showToast(data.message, 'error');
+      }
+    }
+
+    async function removePlayer(id) {
+      const res = await fetch(`/api/players/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Đã xóa người chơi', 'info');
+        loadPlayers();
+      }
+    }
+
+    async function bulkAddPlayers() {
+      const textarea = document.getElementById('bulkInput');
+      const text = textarea.value.trim();
+      if (!text) return showToast('Vui lòng nhập danh sách', 'error');
+
+      const lines = text.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+      if (lines.length === 0) return showToast('Không tìm thấy ID hợp lệ', 'error');
+
+      // Parse "ID:Tên" or just "ID"
+      const playerEntries = lines.map(line => {
+        const parts = line.split(':').map(s => s.trim());
+        const roleId = parts[0];
+        const roleName = parts[1] || roleId;
+        return { roleId, roleName };
+      }).filter(e => e.roleId);
+
+      const res = await fetch('/api/players/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ players: playerEntries, serverId: '2' })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        textarea.value = '';
+        showToast(`Đã thêm ${data.added} người chơi (bỏ qua ${data.skipped} trùng)`, 'success');
+        loadPlayers();
+      } else {
+        showToast(data.message, 'error');
+      }
+    }
+
+    // ============== REDEEM ==============
+    async function redeemAll() {
+      if (isRedeeming) return;
+      
+      const code = document.getElementById('codeInput').value.trim();
+      if (!code) return showToast('Vui lòng nhập mã giftcode', 'error');
+      if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
+
+      const delayMs = parseInt(document.getElementById('delayMs').value) || 1500;
+
+      isRedeeming = true;
+      const btn = document.getElementById('redeemBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Đang nhập...';
+
+      const progress = document.getElementById('progressContainer');
+      progress.classList.add('active');
+      updateProgress(0, players.length, 'Đang bắt đầu...');
+
+      try {
+        const res = await fetch('/api/redeem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, delayMs })
+        });
+
+        const data = await res.json();
+        
+        if (data.success !== undefined) {
+          showResults(data);
+          loadHistory();
+          
+          if (data.successCount > 0) {
+            showToast(`Thành công: ${data.successCount}/${data.total}`, 'success');
+          } else {
+            showToast(`Thất bại tất cả ${data.total} người chơi`, 'error');
+          }
+        } else {
+          showToast(data.message || 'Lỗi không xác định', 'error');
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+      } finally {
+        isRedeeming = false;
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Nhập cho tất cả`;
+        progress.classList.remove('active');
+      }
+    }
+
+    function updateProgress(current, total, text) {
+      const pct = total > 0 ? (current / total) * 100 : 0;
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressText').textContent = text;
+      document.getElementById('progressCount').textContent = `${current}/${total}`;
+    }
+
+    function showResults(data) {
+      const section = document.getElementById('resultsSection');
+      section.classList.add('active');
+
+      document.getElementById('summaryGrid').innerHTML = `
+        <div class="summary-tile s-total">
+          <div class="val">${data.total}</div>
+          <div class="lbl">Tổng cộng</div>
+        </div>
+        <div class="summary-tile s-ok">
+          <div class="val">${data.successCount}</div>
+          <div class="lbl">Thành công</div>
+        </div>
+        <div class="summary-tile s-fail">
+          <div class="val">${data.failCount}</div>
+          <div class="lbl">Thất bại</div>
+        </div>
+      `;
+
+      document.getElementById('resultsList').innerHTML = data.results.map(r => `
+        <div class="result-row ${r.success ? 'ok' : 'fail'}">
+          <span class="result-tag ${r.success ? 'ok' : 'fail'}">${r.success ? 'OK' : 'FAIL'}</span>
+          <span class="result-id">${escapeHtml(r.roleName && r.roleName !== r.roleId ? r.roleName : '')}${r.roleName && r.roleName !== r.roleId ? ' · ' : ''}ID: ${escapeHtml(r.roleId)}</span>
+          <span class="result-msg">${escapeHtml(r.message)}</span>
+        </div>
+      `).join('');
+
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function hideResults() {
+      document.getElementById('resultsSection').classList.remove('active');
+    }
+
+    // ============== HISTORY ==============
+    async function loadHistory() {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      if (data.success) {
+        history = data.data;
+        renderHistory();
+        updateStats();
+      }
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('historyList');
+      if (history.length === 0) {
+        list.innerHTML = `
+          <div class="empty">
+            <div class="glyph">📭</div>
+            <div class="msg">Chưa có lịch sử</div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = history.map(h => `
+        <div class="history-row" onclick="showHistoryDetail('${h.id}')">
+          <div class="history-top">
+            <span class="history-code">${escapeHtml(h.code)}</span>
+            <span class="history-time">${formatTime(h.timestamp)}</span>
+          </div>
+          <div class="history-pills">
+            <span class="pill-ok">✓ ${h.successCount} thành công</span>
+            <span class="pill-fail">✕ ${h.failCount} thất bại</span>
+            <span class="pill-total">· ${h.totalPlayers} người</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showHistoryDetail(id) {
+      const item = history.find(h => h.id === id);
+      if (!item) return;
+      showResults({
+        code: item.code,
+        total: item.totalPlayers,
+        successCount: item.successCount,
+        failCount: item.failCount,
+        results: item.results
+      });
+    }
+
+    async function clearHistory() {
+      if (!confirm('Xóa toàn bộ lịch sử nhập code?')) return;
+      await fetch('/api/history', { method: 'DELETE' });
+      showToast('Đã xóa lịch sử', 'info');
+      loadHistory();
+    }
+
+    // ============== HELPERS ==============
+    function updateStats() {
+      document.getElementById('totalPlayers').textContent = players.length;
+      document.getElementById('totalRedeems').textContent = history.length;
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
