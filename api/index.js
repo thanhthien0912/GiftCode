@@ -7,7 +7,11 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Serve static locally only (Vercel serves public/ automatically)
+if (require.main === module) {
+  app.use(express.static(path.join(__dirname, '..', 'public')));
+}
 
 // ============== API ROUTES ==============
 
