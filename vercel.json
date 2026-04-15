@@ -1,4 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/players/bulk", "destination": "/api/index" },
+    { "source": "/api/players/:path*", "destination": "/api/index" },
+    { "source": "/api/players", "destination": "/api/index" },
+    { "source": "/api/redeem/single", "destination": "/api/index" },
+    { "source": "/api/redeem", "destination": "/api/index" },
+    { "source": "/api/history", "destination": "/api/index" },
+    { "source": "/api/export", "destination": "/api/index" }
+  ]
 }
