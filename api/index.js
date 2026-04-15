@@ -52,16 +52,13 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // ============== Parse body ==============
-async function parseBody(req) {
-  if (req.body) return req.body;
-  return new Promise((resolve) => {
-    let data = '';
-    req.on('data', chunk => data += chunk);
-    req.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch { resolve({}); }
-    });
-  });
+function parseBody(req) {
+  // Vercel auto-parses JSON body; Express also parses via middleware
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch { return {}; }
+  }
+  return {};
 }
 
 // ============== Route handlers ==============
