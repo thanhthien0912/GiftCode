@@ -2,13 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "rewrites": [
-    { "source": "/api/players/bulk", "destination": "/api/index" },
-    { "source": "/api/players/:path*", "destination": "/api/index" },
-    { "source": "/api/players", "destination": "/api/index" },
-    { "source": "/api/redeem/single", "destination": "/api/index" },
-    { "source": "/api/redeem", "destination": "/api/index" },
-    { "source": "/api/history", "destination": "/api/index" },
-    { "source": "/api/export", "destination": "/api/index" },
-    { "source": "/api/import", "destination": "/api/index" }
+    { "source": "/api/players/bulk", "destination": "/api/index?route=/api/players/bulk" },
+    { "source": "/api/players/:id", "destination": "/api/index?route=/api/players/:id&id=:id" },
+    { "source": "/api/players", "destination": "/api/index?route=/api/players" },
+    { "source": "/api/redeem/single", "destination": "/api/index?route=/api/redeem/single" },
+    { "source": "/api/redeem", "destination": "/api/index?route=/api/redeem" },
+    { "source": "/api/history", "destination": "/api/index?route=/api/history" },
+    { "source": "/api/export", "destination": "/api/index?route=/api/export" },
+    { "source": "/api/import", "destination": "/api/index?route=/api/import" }
   ]
 }

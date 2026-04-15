@@ -88,7 +88,8 @@ async function handlePlayers(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const id = req.url.split('/').pop();
+    // Vercel: id from query param; Express: id from URL path
+    const id = req.query?.id || req.url.split('/').pop();
     const deleted = await db.removePlayer(id);
     if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
     return res.json({ success: true });
@@ -244,10 +245,13 @@ async function handleImport(req, res) {
 
 module.exports = async (req, res) => {
   try {
-    const url = req.url.split('?')[0].replace(/\/+$/, '');
+    // Vercel rewrites lose original URL — use query param 'route' as source of truth
+    const rawUrl = req.query?.route || req.url.split('?')[0];
+    const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
-    if (url.startsWith('/api/players')) return handlePlayers(req, res);
+    if (url.startsWith('/api/players/')) return handlePlayers(req, res);
+    if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
     if (url === '/api/redeem') return handleRedeem(req, res);
     if (url === '/api/history') return handleHistory(req, res);
