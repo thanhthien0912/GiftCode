@@ -238,6 +238,73 @@ async function handleExport(req, res) {
   res.end(JSON.stringify(data));
 }
 
+async function handleImport(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  const body = parseBody(req);
+  const { players: importPlayers, history: importHistory, mode } = body;
+
+  if (!importPlayers && !importHistory) {
+    return res.status(400).json({ success: false, message: 'File backup không hợp lệ. Cần có "players" hoặc "history".' });
+  }
+
+  const mergeMode = mode || 'replace'; // 'replace' or 'merge'
+
+  try {
+    if (mergeMode === 'merge') {
+      // Merge: keep existing, add non-duplicate
+      if (Array.isArray(importPlayers)) {
+        const existing = await db.loadPlayers();
+        const existingIds = new Set(existing.map(p => p.roleId + '|' + p.serverId));
+        let added = 0;
+        for (const p of importPlayers) {
+          const key = (p.roleId || '') + '|' + (p.serverId || '2');
+          if (!existingIds.has(key)) {
+            existing.push({ ...p, id: p.id || uuidv4() });
+            existingIds.add(key);
+            added++;
+          }
+        }
+        await db.savePlayers(existing);
+      }
+      if (Array.isArray(importHistory)) {
+        const existing = await db.loadHistory();
+        const existingIds = new Set(existing.map(h => h.id));
+        let added = 0;
+        for (const h of importHistory) {
+          if (h.id && !existingIds.has(h.id)) {
+            existing.push(h);
+            existingIds.add(h.id);
+            added++;
+          }
+        }
+        existing.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        if (existing.length > 100) existing.length = 100;
+        await db.saveHistory(existing);
+      }
+    } else {
+      // Replace: overwrite entirely
+      if (Array.isArray(importPlayers)) await db.savePlayers(importPlayers);
+      if (Array.isArray(importHistory)) {
+        const hist = importHistory.slice(0, 100);
+        await db.saveHistory(hist);
+      }
+    }
+
+    const currentPlayers = await db.loadPlayers();
+    const currentHistory = await db.loadHistory();
+
+    res.status(200).json({
+      success: true,
+      message: `Import thành công (${mergeMode})`,
+      playerCount: currentPlayers.length,
+      historyCount: currentHistory.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi import: ' + err.message });
+  }
+}
+
 // ============== Main handler (Vercel serverless) ==============
 module.exports = async (req, res) => {
   try {
@@ -249,6 +316,7 @@ module.exports = async (req, res) => {
     if (url === '/api/redeem') return handleRedeem(req, res);
     if (url === '/api/history') return handleHistory(req, res);
     if (url === '/api/export') return handleExport(req, res);
+    if (url === '/api/import') return handleImport(req, res);
 
     res.status(404).json({ success: false, message: 'Not found' });
   } catch (err) {

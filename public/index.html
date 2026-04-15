@@ -817,6 +817,10 @@
         <button class="btn-backup" onclick="downloadBackup()" title="Tải backup dữ liệu">
           💾 Backup
         </button>
+        <button class="btn-backup" onclick="triggerImport()" title="Khôi phục dữ liệu từ file backup">
+          📂 Import
+        </button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
       </div>
     </div>
   </header>
@@ -1269,6 +1273,58 @@
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    // ============== IMPORT ==============
+    function triggerImport() {
+      document.getElementById('importFileInput').click();
+    }
+
+    async function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        if (!data.players && !data.history) {
+          showToast('File không hợp lệ — cần có "players" hoặc "history"', 'error');
+          event.target.value = '';
+          return;
+        }
+
+        const playerCount = Array.isArray(data.players) ? data.players.length : 0;
+        const historyCount = Array.isArray(data.history) ? data.history.length : 0;
+
+        if (!confirm(`Import ${playerCount} người chơi và ${historyCount} lịch sử?\n\nDữ liệu hiện tại sẽ được GHI ĐÈ.`)) {
+          event.target.value = '';
+          return;
+        }
+
+        const res = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            players: data.players,
+            history: data.history,
+            mode: 'replace'
+          })
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          showToast(`Import thành công: ${result.playerCount} người chơi, ${result.historyCount} lịch sử`, 'success');
+          loadPlayers();
+          loadHistory();
+        } else {
+          showToast(result.message || 'Lỗi import', 'error');
+        }
+      } catch (err) {
+        showToast('File JSON không hợp lệ: ' + err.message, 'error');
+      }
+
+      event.target.value = '';
     }
   </script>
 </body>

@@ -8,6 +8,7 @@
     { "source": "/api/redeem/single", "destination": "/api/index" },
     { "source": "/api/redeem", "destination": "/api/index" },
     { "source": "/api/history", "destination": "/api/index" },
-    { "source": "/api/export", "destination": "/api/index" }
+    { "source": "/api/export", "destination": "/api/index" },
+    { "source": "/api/import", "destination": "/api/index" }
   ]
 }
