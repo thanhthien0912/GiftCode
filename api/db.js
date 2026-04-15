@@ -1,11 +1,11 @@
-const { put, get } = require('@vercel/blob');
 const fs = require('fs');
 const path = require('path');
 
 const USE_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
+const IS_VERCEL = !!process.env.VERCEL;
 
-// ============== Local JSON file backend ==============
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// ============== Local / /tmp JSON file backend ==============
+const DATA_DIR = IS_VERCEL ? '/tmp' : path.join(__dirname, '..', 'data');
 const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 
@@ -28,6 +28,7 @@ function writeJsonLocal(file, data) {
 // ============== Vercel Blob backend ==============
 async function readBlob(key, fallback = []) {
   try {
+    const { get } = require('@vercel/blob');
     const result = await get(key, { access: 'public' });
     if (!result || result.statusCode === 304) return fallback;
     const reader = result.stream.getReader();
@@ -45,6 +46,7 @@ async function readBlob(key, fallback = []) {
 }
 
 async function writeBlob(key, data) {
+  const { put } = require('@vercel/blob');
   await put(key, JSON.stringify(data, null, 2), {
     access: 'public',
     contentType: 'application/json',
@@ -76,7 +78,9 @@ async function saveHistory(history) {
 }
 
 function getMode() {
-  return USE_BLOB ? 'vercel-blob' : 'json-file';
+  if (USE_BLOB) return 'vercel-blob';
+  if (IS_VERCEL) return 'vercel-tmp (data will not persist across deploys)';
+  return 'json-file';
 }
 
 module.exports = { loadPlayers, savePlayers, loadHistory, saveHistory, getMode };
