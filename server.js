@@ -234,6 +234,28 @@ app.delete('/api/history', async (req, res) => {
   }
 });
 
+// ============== EXPORT DATA ==============
+
+// Export all data as JSON (download from browser)
+app.get('/api/export', async (req, res) => {
+  try {
+    const players = await db.loadPlayers();
+    const history = await db.loadHistory();
+    const data = {
+      exportedAt: new Date().toISOString(),
+      players,
+      history
+    };
+
+    res.setHeader('Content-Disposition', `attachment; filename="giftcode-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(data);
+  } catch (err) {
+    console.error('Export error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 // ============== VNG API HELPER ==============
 
 const ERROR_MESSAGES = {
