@@ -1,6 +1,7 @@
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const db = require('./db');
 
+function uuidv4() { return crypto.randomUUID(); }
 // ============== VNG API HELPER ==============
 const ERROR_MESSAGES = {
   1: 'Thành công! Kiểm tra hộp thư trong game.',
