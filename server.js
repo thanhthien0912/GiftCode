@@ -1,7 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
 const path = require('path');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,90 +10,65 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database file path
-const DB_FILE = path.join(__dirname, 'data', 'players.json');
-const HISTORY_FILE = path.join(__dirname, 'data', 'history.json');
-
-// Ensure data directory exists
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-  fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-}
-
-// Load/Save helpers
-function loadPlayers() {
-  if (!fs.existsSync(DB_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-}
-
-function savePlayers(players) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(players, null, 2));
-}
-
-function loadHistory() {
-  if (!fs.existsSync(HISTORY_FILE)) return [];
-  return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8'));
-}
-
-function saveHistory(history) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-}
-
 // ============== API ROUTES ==============
 
 // Get all players
-app.get('/api/players', (req, res) => {
-  const players = loadPlayers();
-  res.json({ success: true, data: players });
+app.get('/api/players', async (req, res) => {
+  try {
+    const players = await db.loadPlayers();
+    res.json({ success: true, data: players });
+  } catch (err) {
+    console.error('Load players error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
 });
 
 // Add a player
-app.post('/api/players', (req, res) => {
+app.post('/api/players', async (req, res) => {
   const { roleId, roleName, serverId } = req.body;
   if (!roleId) {
     return res.status(400).json({ success: false, message: 'roleId là bắt buộc' });
   }
 
-  const players = loadPlayers();
-  
-  // Check duplicate
-  if (players.find(p => p.roleId === roleId && p.serverId === (serverId || '2'))) {
-    return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
+  try {
+    const sid = serverId || '2';
+    const existing = await db.findPlayer(roleId.trim(), sid);
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
+    }
+
+    const player = await db.addPlayer({
+      id: uuidv4(),
+      roleId: roleId.trim(),
+      roleName: (roleName || roleId).trim(),
+      serverId: sid
+    });
+
+    res.json({ success: true, data: player });
+  } catch (err) {
+    console.error('Add player error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
   }
-
-  const player = {
-    id: uuidv4(),
-    roleId: roleId.trim(),
-    roleName: (roleName || roleId).trim(),
-    serverId: serverId || '2',
-    createdAt: new Date().toISOString()
-  };
-
-  players.push(player);
-  savePlayers(players);
-  res.json({ success: true, data: player });
 });
 
 // Delete a player
-app.delete('/api/players/:id', (req, res) => {
-  let players = loadPlayers();
-  const before = players.length;
-  players = players.filter(p => p.id !== req.params.id);
-  
-  if (players.length === before) {
-    return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
+app.delete('/api/players/:id', async (req, res) => {
+  try {
+    const deleted = await db.deletePlayer(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete player error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
   }
-
-  savePlayers(players);
-  res.json({ success: true });
 });
 
 // Import multiple players (bulk)
-app.post('/api/players/bulk', (req, res) => {
+app.post('/api/players/bulk', async (req, res) => {
   const { roleIds, players: playerEntries, serverId } = req.body;
 
-  // Support both formats:
-  // Old: { roleIds: ["id1", "id2"], serverId }
-  // New: { players: [{ roleId, roleName }], serverId }
   let entries = [];
   if (playerEntries && Array.isArray(playerEntries)) {
     entries = playerEntries.map(p => ({
@@ -111,29 +86,32 @@ app.post('/api/players/bulk', (req, res) => {
     return res.status(400).json({ success: false, message: 'Danh sách người chơi không hợp lệ' });
   }
 
-  const players = loadPlayers();
-  const added = [];
-  const skipped = [];
+  try {
+    const sid = serverId || '2';
+    const added = [];
+    const skipped = [];
 
-  for (const entry of entries) {
-    if (players.find(p => p.roleId === entry.roleId && p.serverId === (serverId || '2'))) {
-      skipped.push(entry.roleId);
-      continue;
+    for (const entry of entries) {
+      const existing = await db.findPlayer(entry.roleId, sid);
+      if (existing) {
+        skipped.push(entry.roleId);
+        continue;
+      }
+
+      await db.addPlayer({
+        id: uuidv4(),
+        roleId: entry.roleId,
+        roleName: entry.roleName || entry.roleId,
+        serverId: sid
+      });
+      added.push(entry.roleId);
     }
 
-    const player = {
-      id: uuidv4(),
-      roleId: entry.roleId,
-      roleName: entry.roleName || entry.roleId,
-      serverId: serverId || '2',
-      createdAt: new Date().toISOString()
-    };
-    players.push(player);
-    added.push(entry.roleId);
+    res.json({ success: true, added: added.length, skipped: skipped.length, details: { added, skipped } });
+  } catch (err) {
+    console.error('Bulk import error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
   }
-
-  savePlayers(players);
-  res.json({ success: true, added: added.length, skipped: skipped.length, details: { added, skipped } });
 });
 
 // ============== REDEEM CODE ==============
@@ -145,74 +123,72 @@ app.post('/api/redeem', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Code không được để trống' });
   }
 
-  const players = loadPlayers();
-  if (players.length === 0) {
-    return res.status(400).json({ success: false, message: 'Chưa có người chơi nào trong danh sách' });
-  }
-
-  const results = [];
-  const delay = Math.max(delayMs || 1000, 500); // Min 500ms between requests
-
-  for (let i = 0; i < players.length; i++) {
-    const player = players[i];
-    
-    try {
-      const result = await redeemCode({
-        code: code.trim(),
-        roleId: player.roleId,
-        roleName: player.roleName,
-        serverId: player.serverId,
-        gameCode: '661'
-      });
-
-      results.push({
-        roleId: player.roleId,
-        roleName: player.roleName,
-        serverId: player.serverId,
-        ...result
-      });
-    } catch (err) {
-      results.push({
-        roleId: player.roleId,
-        roleName: player.roleName,
-        serverId: player.serverId,
-        success: false,
-        errorCode: -1,
-        message: err.message
-      });
+  try {
+    const players = await db.loadPlayers();
+    if (players.length === 0) {
+      return res.status(400).json({ success: false, message: 'Chưa có người chơi nào trong danh sách' });
     }
 
-    // Delay between requests to avoid rate limiting
-    if (i < players.length - 1) {
-      await sleep(delay);
+    const results = [];
+    const delay = Math.max(delayMs || 1000, 500);
+
+    for (let i = 0; i < players.length; i++) {
+      const player = players[i];
+
+      try {
+        const result = await redeemCode({
+          code: code.trim(),
+          roleId: player.roleId,
+          roleName: player.roleName,
+          serverId: player.serverId,
+          gameCode: '661'
+        });
+
+        results.push({
+          roleId: player.roleId,
+          roleName: player.roleName,
+          serverId: player.serverId,
+          ...result
+        });
+      } catch (err) {
+        results.push({
+          roleId: player.roleId,
+          roleName: player.roleName,
+          serverId: player.serverId,
+          success: false,
+          errorCode: -1,
+          message: err.message
+        });
+      }
+
+      if (i < players.length - 1) {
+        await sleep(delay);
+      }
     }
+
+    // Save to history
+    const successCount = results.filter(r => r.success).length;
+    await db.addHistory({
+      id: uuidv4(),
+      code: code.trim(),
+      totalPlayers: players.length,
+      successCount,
+      failCount: players.length - successCount,
+      results
+    });
+
+    res.json({
+      success: true,
+      code: code.trim(),
+      total: players.length,
+      successCount,
+      failCount: players.length - successCount,
+      results
+    });
+  } catch (err) {
+    console.error('Redeem error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
   }
-
-  // Save to history
-  const history = loadHistory();
-  history.unshift({
-    id: uuidv4(),
-    code: code.trim(),
-    timestamp: new Date().toISOString(),
-    totalPlayers: players.length,
-    successCount: results.filter(r => r.success).length,
-    failCount: results.filter(r => !r.success).length,
-    results
-  });
-
-  // Keep only last 100 entries
-  if (history.length > 100) history.length = 100;
-  saveHistory(history);
-
-  const successCount = results.filter(r => r.success).length;
-  res.json({
-    success: true,
-    code: code.trim(),
-    total: players.length,
-    successCount,
-    failCount: players.length - successCount,
-    results
-  });
 });
 
 // Redeem code for a specific player
@@ -237,20 +213,29 @@ app.post('/api/redeem/single', async (req, res) => {
 });
 
 // Get history
-app.get('/api/history', (req, res) => {
-  const history = loadHistory();
-  res.json({ success: true, data: history });
+app.get('/api/history', async (req, res) => {
+  try {
+    const history = await db.loadHistory();
+    res.json({ success: true, data: history });
+  } catch (err) {
+    console.error('Load history error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
 });
 
 // Clear history
-app.delete('/api/history', (req, res) => {
-  saveHistory([]);
-  res.json({ success: true });
+app.delete('/api/history', async (req, res) => {
+  try {
+    await db.clearHistory();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Clear history error:', err.message);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
 });
 
 // ============== VNG API HELPER ==============
 
-// Error code mapping from VNG
 const ERROR_MESSAGES = {
   1: 'Thành công! Kiểm tra hộp thư trong game.',
   1002: 'Không tìm thấy thông tin nhân vật.',
@@ -297,7 +282,7 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
   });
 
   const data = await response.json();
-  
+
   return {
     success: data.errorCode === 1,
     errorCode: data.errorCode,
@@ -311,7 +296,15 @@ function sleep(ms) {
 }
 
 // ============== START SERVER ==============
-app.listen(PORT, () => {
-  console.log(`🎮 VNG Giftcode Bot đang chạy tại http://localhost:${PORT}`);
-  console.log(`📋 Mở trình duyệt để quản lý danh sách người chơi và nhập code`);
+async function start() {
+  await db.initDb();
+  app.listen(PORT, () => {
+    console.log(`🎮 VNG Giftcode Bot đang chạy tại http://localhost:${PORT}`);
+    console.log(`📋 Mở trình duyệt để quản lý danh sách người chơi và nhập code`);
+  });
+}
+
+start().catch(err => {
+  console.error('❌ Không thể khởi động server:', err.message);
+  process.exit(1);
 });
