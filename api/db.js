@@ -30,7 +30,7 @@ async function savePlayers(players) {
 
 async function addPlayer(player) {
   const db = await getDb();
-  await db.collection('players').insertOne(player);
+  await db.collection('players').insertOne({ ...player });
 }
 
 async function removePlayer(id) {
@@ -61,7 +61,7 @@ async function saveHistory(history) {
 async function addHistory(entry) {
   const db = await getDb();
   const col = db.collection('history');
-  await col.insertOne(entry);
+  await col.insertOne({ ...entry });
   // Keep max 100
   const count = await col.countDocuments();
   if (count > 100) {
