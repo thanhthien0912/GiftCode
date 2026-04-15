@@ -221,7 +221,7 @@ async function handleExport(req, res) {
 async function handleImport(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const { players, history, mode } = parseBody(req);
+  const { players, history } = parseBody(req);
   if (!players && !history) {
     return res.status(400).json({ success: false, message: 'File backup không hợp lệ. Cần có "players" hoặc "history".' });
   }
