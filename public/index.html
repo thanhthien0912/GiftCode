@@ -1191,7 +1191,7 @@
         <div class="result-row ${r.success ? 'ok' : 'fail'}">
           <span class="result-tag ${r.success ? 'ok' : 'fail'}">${r.success ? 'OK' : 'FAIL'}</span>
           <span class="result-id">${escapeHtml(r.roleName && r.roleName !== r.roleId ? r.roleName : '')}${r.roleName && r.roleName !== r.roleId ? ' · ' : ''}ID: ${escapeHtml(r.roleId)}</span>
-          <span class="result-msg">${escapeHtml(r.message)}</span>
+          <span class="result-msg">${escapeHtml(r.message)}${r.detail && r.detail !== r.message ? ' <span style="color:var(--text-tertiary);font-size:11px">(' + escapeHtml(r.detail) + ')</span>' : ''}</span>
         </div>
       `).join('');
 

@@ -42,10 +42,13 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
     body: JSON.stringify({ serverId, gameCode, roleId, roleName, code })
   });
   const data = await res.json();
+  const viMessage = ERROR_MESSAGES[data.errorCode];
+  const rawMessage = data.description || data.message || '';
   return {
     success: data.errorCode === 1,
     errorCode: data.errorCode,
-    message: ERROR_MESSAGES[data.errorCode] || data.message || 'Lỗi không xác định'
+    message: viMessage || rawMessage || 'Lỗi không xác định',
+    detail: rawMessage
   };
 }
 
