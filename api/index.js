@@ -2,7 +2,9 @@ const crypto = require('crypto');
 const db = require('./db');
 
 function uuidv4() { return crypto.randomUUID(); }
-// ============== VNG API HELPER ==============
+
+// ============== VNG API ==============
+
 const ERROR_MESSAGES = {
   1: 'Thành công! Kiểm tra hộp thư trong game.',
   1002: 'Không tìm thấy thông tin nhân vật.',
@@ -27,8 +29,7 @@ const ERROR_MESSAGES = {
 };
 
 async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
-  const body = JSON.stringify({ serverId, gameCode, roleId, roleName, code });
-  const response = await fetch('https://vgrapi-sea.vnggames.com/coordinator/api/v1/code/redeem', {
+  const res = await fetch('https://vgrapi-sea.vnggames.com/coordinator/api/v1/code/redeem', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -38,22 +39,21 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
       'Origin': 'https://giftcode.vnggames.com',
       'Referer': 'https://giftcode.vnggames.com/'
     },
-    body
+    body: JSON.stringify({ serverId, gameCode, roleId, roleName, code })
   });
-  const data = await response.json();
+  const data = await res.json();
   return {
     success: data.errorCode === 1,
     errorCode: data.errorCode,
-    message: ERROR_MESSAGES[data.errorCode] || data.message || data.description || 'Lỗi không xác định',
-    rawResponse: data
+    message: ERROR_MESSAGES[data.errorCode] || data.message || 'Lỗi không xác định'
   };
 }
 
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ============== Parse body ==============
+// ============== Body parser ==============
+
 function parseBody(req) {
-  // Vercel auto-parses JSON body; Express also parses via middleware
   if (req.body && typeof req.body === 'object') return req.body;
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body); } catch { return {}; }
@@ -61,25 +61,20 @@ function parseBody(req) {
   return {};
 }
 
-// ============== Route handlers ==============
+// ============== Route: Players ==============
 
 async function handlePlayers(req, res) {
   if (req.method === 'GET') {
-    const players = await db.loadPlayers();
-    return res.json({ success: true, data: players });
+    return res.json({ success: true, data: await db.loadPlayers() });
   }
 
   if (req.method === 'POST') {
-    const body = await parseBody(req);
-    const { roleId, roleName, serverId } = body;
+    const { roleId, roleName, serverId } = parseBody(req);
     if (!roleId) return res.status(400).json({ success: false, message: 'roleId là bắt buộc' });
 
-    const players = await db.loadPlayers();
     const sid = serverId || '2';
-
-    if (players.find(p => p.roleId === roleId.trim() && p.serverId === sid)) {
-      return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
-    }
+    const existing = await db.findPlayer(roleId.trim(), sid);
+    if (existing) return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
 
     const player = {
       id: uuidv4(),
@@ -88,39 +83,35 @@ async function handlePlayers(req, res) {
       serverId: sid,
       createdAt: new Date().toISOString()
     };
-    players.push(player);
-    await db.savePlayers(players);
+    await db.addPlayer(player);
     return res.json({ success: true, data: player });
   }
 
   if (req.method === 'DELETE') {
     const id = req.url.split('/').pop();
-    let players = await db.loadPlayers();
-    const before = players.length;
-    players = players.filter(p => p.id !== id);
-    if (players.length === before) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
-    }
-    await db.savePlayers(players);
+    const deleted = await db.removePlayer(id);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
     return res.json({ success: true });
   }
 
   res.status(405).json({ success: false, message: 'Method not allowed' });
 }
 
+// ============== Route: Players Bulk ==============
+
 async function handlePlayersBulk(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const body = await parseBody(req);
-  const { roleIds, players: playerEntries, serverId } = body;
+  const { roleIds, players: playerEntries, serverId } = parseBody(req);
+  const sid = serverId || '2';
 
   let entries = [];
-  if (playerEntries && Array.isArray(playerEntries)) {
+  if (Array.isArray(playerEntries)) {
     entries = playerEntries.map(p => ({
       roleId: (p.roleId || '').trim(),
       roleName: (p.roleName || p.roleId || '').trim()
     })).filter(p => p.roleId);
-  } else if (roleIds && Array.isArray(roleIds)) {
+  } else if (Array.isArray(roleIds)) {
     entries = roleIds.map(rid => ({ roleId: rid.trim(), roleName: rid.trim() })).filter(p => p.roleId);
   }
 
@@ -128,84 +119,69 @@ async function handlePlayersBulk(req, res) {
     return res.status(400).json({ success: false, message: 'Danh sách người chơi không hợp lệ' });
   }
 
-  const players = await db.loadPlayers();
-  const sid = serverId || '2';
-  const added = [];
-  const skipped = [];
-
+  let added = 0, skipped = 0;
   for (const entry of entries) {
-    if (players.find(p => p.roleId === entry.roleId && p.serverId === sid)) {
-      skipped.push(entry.roleId);
-      continue;
-    }
-    players.push({
+    const exists = await db.findPlayer(entry.roleId, sid);
+    if (exists) { skipped++; continue; }
+    await db.addPlayer({
       id: uuidv4(),
       roleId: entry.roleId,
       roleName: entry.roleName || entry.roleId,
       serverId: sid,
       createdAt: new Date().toISOString()
     });
-    added.push(entry.roleId);
+    added++;
   }
 
-  await db.savePlayers(players);
-  res.json({ success: true, added: added.length, skipped: skipped.length, details: { added, skipped } });
+  res.json({ success: true, added, skipped });
 }
+
+// ============== Route: Redeem ==============
 
 async function handleRedeem(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const body = await parseBody(req);
-  const { code, delayMs } = body;
-  if (!code || !code.trim()) {
-    return res.status(400).json({ success: false, message: 'Code không được để trống' });
-  }
+  const { code, delayMs } = parseBody(req);
+  if (!code || !code.trim()) return res.status(400).json({ success: false, message: 'Code không được để trống' });
 
   const players = await db.loadPlayers();
-  if (players.length === 0) {
-    return res.status(400).json({ success: false, message: 'Chưa có người chơi nào trong danh sách' });
-  }
+  if (players.length === 0) return res.status(400).json({ success: false, message: 'Chưa có người chơi nào' });
 
-  const results = [];
   const delay = Math.max(delayMs || 1000, 500);
+  const results = [];
 
   for (let i = 0; i < players.length; i++) {
-    const player = players[i];
+    const p = players[i];
     try {
-      const result = await redeemCode({
-        code: code.trim(),
-        roleId: player.roleId,
-        roleName: player.roleName,
-        serverId: player.serverId,
-        gameCode: '661'
-      });
-      results.push({ roleId: player.roleId, roleName: player.roleName, serverId: player.serverId, ...result });
+      const r = await redeemCode({ code: code.trim(), roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' });
+      results.push({ roleId: p.roleId, roleName: p.roleName, ...r });
     } catch (err) {
-      results.push({ roleId: player.roleId, roleName: player.roleName, serverId: player.serverId, success: false, errorCode: -1, message: err.message });
+      results.push({ roleId: p.roleId, roleName: p.roleName, success: false, errorCode: -1, message: err.message });
     }
     if (i < players.length - 1) await sleep(delay);
   }
 
-  const history = await db.loadHistory();
   const successCount = results.filter(r => r.success).length;
-  history.unshift({
-    id: uuidv4(), code: code.trim(), timestamp: new Date().toISOString(),
-    totalPlayers: players.length, successCount, failCount: players.length - successCount, results
+  await db.addHistory({
+    id: uuidv4(),
+    code: code.trim(),
+    timestamp: new Date().toISOString(),
+    totalPlayers: players.length,
+    successCount,
+    failCount: players.length - successCount,
+    results
   });
-  if (history.length > 100) history.length = 100;
-  await db.saveHistory(history);
 
   res.json({ success: true, code: code.trim(), total: players.length, successCount, failCount: players.length - successCount, results });
 }
 
+// ============== Route: Redeem Single ==============
+
 async function handleRedeemSingle(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const body = await parseBody(req);
-  const { code, roleId, roleName, serverId } = body;
-  if (!code || !roleId) {
-    return res.status(400).json({ success: false, message: 'Code và roleId là bắt buộc' });
-  }
+  const { code, roleId, roleName, serverId } = parseBody(req);
+  if (!code || !roleId) return res.status(400).json({ success: false, message: 'Code và roleId là bắt buộc' });
 
   try {
     const result = await redeemCode({ code: code.trim(), roleId, roleName: roleName || roleId, serverId: serverId || '2', gameCode: '661' });
@@ -215,17 +191,15 @@ async function handleRedeemSingle(req, res) {
   }
 }
 
+// ============== Route: History ==============
+
 async function handleHistory(req, res) {
-  if (req.method === 'GET') {
-    const history = await db.loadHistory();
-    return res.json({ success: true, data: history });
-  }
-  if (req.method === 'DELETE') {
-    await db.saveHistory([]);
-    return res.json({ success: true });
-  }
+  if (req.method === 'GET') return res.json({ success: true, data: await db.loadHistory() });
+  if (req.method === 'DELETE') { await db.clearHistory(); return res.json({ success: true }); }
   res.status(405).json({ success: false, message: 'Method not allowed' });
 }
+
+// ============== Route: Export ==============
 
 async function handleExport(req, res) {
   const data = {
@@ -238,65 +212,26 @@ async function handleExport(req, res) {
   res.end(JSON.stringify(data));
 }
 
+// ============== Route: Import ==============
+
 async function handleImport(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const body = parseBody(req);
-  const { players: importPlayers, history: importHistory, mode } = body;
-
-  if (!importPlayers && !importHistory) {
+  const { players, history, mode } = parseBody(req);
+  if (!players && !history) {
     return res.status(400).json({ success: false, message: 'File backup không hợp lệ. Cần có "players" hoặc "history".' });
   }
 
-  const mergeMode = mode || 'replace'; // 'replace' or 'merge'
-
   try {
-    if (mergeMode === 'merge') {
-      // Merge: keep existing, add non-duplicate
-      if (Array.isArray(importPlayers)) {
-        const existing = await db.loadPlayers();
-        const existingIds = new Set(existing.map(p => p.roleId + '|' + p.serverId));
-        let added = 0;
-        for (const p of importPlayers) {
-          const key = (p.roleId || '') + '|' + (p.serverId || '2');
-          if (!existingIds.has(key)) {
-            existing.push({ ...p, id: p.id || uuidv4() });
-            existingIds.add(key);
-            added++;
-          }
-        }
-        await db.savePlayers(existing);
-      }
-      if (Array.isArray(importHistory)) {
-        const existing = await db.loadHistory();
-        const existingIds = new Set(existing.map(h => h.id));
-        let added = 0;
-        for (const h of importHistory) {
-          if (h.id && !existingIds.has(h.id)) {
-            existing.push(h);
-            existingIds.add(h.id);
-            added++;
-          }
-        }
-        existing.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        if (existing.length > 100) existing.length = 100;
-        await db.saveHistory(existing);
-      }
-    } else {
-      // Replace: overwrite entirely
-      if (Array.isArray(importPlayers)) await db.savePlayers(importPlayers);
-      if (Array.isArray(importHistory)) {
-        const hist = importHistory.slice(0, 100);
-        await db.saveHistory(hist);
-      }
-    }
+    if (Array.isArray(players)) await db.savePlayers(players);
+    if (Array.isArray(history)) await db.saveHistory(history.slice(0, 100));
 
     const currentPlayers = await db.loadPlayers();
     const currentHistory = await db.loadHistory();
 
-    res.status(200).json({
+    res.json({
       success: true,
-      message: `Import thành công (${mergeMode})`,
+      message: 'Import thành công',
       playerCount: currentPlayers.length,
       historyCount: currentHistory.length
     });
@@ -305,7 +240,8 @@ async function handleImport(req, res) {
   }
 }
 
-// ============== Main handler (Vercel serverless) ==============
+// ============== Main handler ==============
+
 module.exports = async (req, res) => {
   try {
     const url = req.url.split('?')[0].replace(/\/+$/, '');

@@ -2,5 +2,4 @@ node_modules/
 .gsd/
 .artifacts/
 .bg-shell/
-*.bat
 .env

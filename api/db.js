@@ -1,80 +1,82 @@
-const fs = require('fs');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
-const IS_VERCEL = !!process.env.VERCEL;
-const KV_URL = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const USE_KV = !!(KV_URL && KV_TOKEN);
+// ============== Connection ==============
 
-// ============== Upstash Redis REST backend ==============
-async function kvGet(key) {
-  const res = await fetch(`${KV_URL}/get/${key}`, {
-    headers: { Authorization: `Bearer ${KV_TOKEN}` }
-  });
-  const data = await res.json();
-  if (data.result === null || data.result === undefined) return null;
-  // Upstash returns string, parse JSON
-  try { return JSON.parse(data.result); }
-  catch { return data.result; }
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+const DB_NAME = process.env.MONGODB_DB || 'giftcode';
+
+let cachedClient = null;
+
+async function getDb() {
+  if (cachedClient) return cachedClient.db(DB_NAME);
+  cachedClient = new MongoClient(MONGO_URI);
+  await cachedClient.connect();
+  return cachedClient.db(DB_NAME);
 }
 
-async function kvSet(key, value) {
-  await fetch(`${KV_URL}/set/${key}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(JSON.stringify(value))
-  });
-}
+// ============== Players ==============
 
-// ============== Local JSON file backend ==============
-const DATA_DIR = IS_VERCEL ? '/tmp' : path.join(__dirname, '..', 'data');
-const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
-const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function readJson(file, fallback = []) {
-  try {
-    if (!fs.existsSync(file)) return fallback;
-    return JSON.parse(fs.readFileSync(file, 'utf-8'));
-  } catch { return fallback; }
-}
-
-function writeJson(file, data) {
-  ensureDataDir();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-// ============== Unified interface ==============
 async function loadPlayers() {
-  if (USE_KV) return (await kvGet('players')) || [];
-  return readJson(PLAYERS_FILE);
+  const db = await getDb();
+  return db.collection('players').find({}, { projection: { _id: 0 } }).toArray();
 }
 
 async function savePlayers(players) {
-  if (USE_KV) return kvSet('players', players);
-  writeJson(PLAYERS_FILE, players);
+  const db = await getDb();
+  const col = db.collection('players');
+  await col.deleteMany({});
+  if (players.length > 0) await col.insertMany(players);
 }
 
+async function addPlayer(player) {
+  const db = await getDb();
+  await db.collection('players').insertOne(player);
+}
+
+async function removePlayer(id) {
+  const db = await getDb();
+  const result = await db.collection('players').deleteOne({ id });
+  return result.deletedCount > 0;
+}
+
+async function findPlayer(roleId, serverId) {
+  const db = await getDb();
+  return db.collection('players').findOne({ roleId, serverId });
+}
+
+// ============== History ==============
+
 async function loadHistory() {
-  if (USE_KV) return (await kvGet('history')) || [];
-  return readJson(HISTORY_FILE);
+  const db = await getDb();
+  return db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 }).limit(100).toArray();
 }
 
 async function saveHistory(history) {
-  if (USE_KV) return kvSet('history', history);
-  writeJson(HISTORY_FILE, history);
+  const db = await getDb();
+  const col = db.collection('history');
+  await col.deleteMany({});
+  if (history.length > 0) await col.insertMany(history);
 }
 
-function getMode() {
-  if (USE_KV) return 'vercel-kv';
-  if (IS_VERCEL) return 'vercel-tmp';
-  return 'json-file';
+async function addHistory(entry) {
+  const db = await getDb();
+  const col = db.collection('history');
+  await col.insertOne(entry);
+  // Keep max 100
+  const count = await col.countDocuments();
+  if (count > 100) {
+    const oldest = await col.find().sort({ timestamp: 1 }).limit(count - 100).toArray();
+    const ids = oldest.map(h => h._id);
+    await col.deleteMany({ _id: { $in: ids } });
+  }
 }
 
-module.exports = { loadPlayers, savePlayers, loadHistory, saveHistory, getMode };
+async function clearHistory() {
+  const db = await getDb();
+  await db.collection('history').deleteMany({});
+}
+
+module.exports = {
+  loadPlayers, savePlayers, addPlayer, removePlayer, findPlayer,
+  loadHistory, saveHistory, addHistory, clearHistory
+};
