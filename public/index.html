@@ -1155,9 +1155,20 @@
         showToast('Lỗi kết nối: ' + err.message, 'error');
       } finally {
         isRedeeming = false;
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Nhập cho tất cả`;
         progress.classList.remove('active');
+        // Cooldown 5s chống spam
+        let cd = 5;
+        btn.innerHTML = `⏳ Chờ ${cd}s...`;
+        const timer = setInterval(() => {
+          cd--;
+          if (cd <= 0) {
+            clearInterval(timer);
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Nhập cho tất cả`;
+          } else {
+            btn.innerHTML = `⏳ Chờ ${cd}s...`;
+          }
+        }, 1000);
       }
     }
 
