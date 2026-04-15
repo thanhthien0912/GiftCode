@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: true, data: player });
     }
 
-    return res.status(404).json({ success: false, message: 'Not found', url, method: req.method });
+    return res.status(404).json({ success: false, message: 'Not found', debug_url: url, debug_method: req.method, raw_url: req.url });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message, stack: err.stack });
   }
