@@ -1164,8 +1164,8 @@
         <div class="card-content">
           <div class="redeem-row">
             <div class="field">
-              <label class="field-label">Mã Giftcode</label>
-              <input type="text" id="codeInput" class="code-input" placeholder="VD: PLAYTOGETHER2026" autofocus>
+              <label class="field-label">Mã Giftcode <span style="color:var(--text-tertiary);font-weight:500;text-transform:none;letter-spacing:0">(nhiều code: cách nhau bằng dấu cách hoặc xuống dòng)</span></label>
+              <textarea id="codeInput" class="code-input" rows="2" placeholder="VD: PLAYTOGETHER2026&#10;hoặc: CODE1 CODE2 CODE3" autofocus style="resize:vertical;min-height:44px"></textarea>
             </div>
             <button class="btn btn-coral" id="redeemBtn" onclick="redeemAll()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
@@ -1301,7 +1301,10 @@
         if (e.key === 'Enter') addPlayer();
       });
       document.getElementById('codeInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') redeemAll();
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          redeemAll();
+        }
       });
     });
 
@@ -1429,62 +1432,99 @@
     // ============== REDEEM ==============
     async function redeemAll() {
       if (isRedeeming) return;
-      
-      const code = document.getElementById('codeInput').value.trim();
-      if (!code) return showToast('Vui lòng nhập mã giftcode', 'error');
+
+      const raw = document.getElementById('codeInput').value.trim();
+      if (!raw) return showToast('Vui lòng nhập mã giftcode', 'error');
       if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
 
-      const prior = findPriorCode(code);
-      if (prior && prior.uniquePlayersSucceeded >= players.length) {
-        showToast(`Code "${code}" đã được nhập cho tất cả ${players.length} người chơi`, 'info');
-        return;
-      }
+      // Tách nhiều code: cách nhau bằng khoảng trắng, xuống dòng, dấu phẩy hoặc chấm phẩy
+      const codes = [...new Set(raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+      if (codes.length === 0) return showToast('Không tìm thấy code hợp lệ', 'error');
 
       const delayMs = parseInt(document.getElementById('delayMs').value) || 1000;
 
       isRedeeming = true;
       const btn = document.getElementById('redeemBtn');
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Đang nhập...';
 
       const progress = document.getElementById('progressContainer');
       progress.classList.add('active');
-      updateProgress(0, players.length, 'Đang bắt đầu...');
-      resetProgressDetail(players.length);
+
+      const aggregated = [];
+      let okCodes = 0, skipCodes = 0, failCodes = 0;
 
       try {
-        const res = await fetch('/api/redeem', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, delayMs })
-        });
+        for (let i = 0; i < codes.length; i++) {
+          const code = codes[i];
+          const codeLabel = `[${i + 1}/${codes.length}] ${code}`;
 
-        if (!res.ok || !res.body) {
-          const data = await res.json().catch(() => ({ message: 'Lỗi không xác định' }));
-          showToast(data.message || 'Lỗi không xác định', 'error');
-          return;
-        }
-
-        const data = await consumeRedeemStream(res);
-
-        if (data && data.success !== undefined) {
-          showResults(data);
-          loadHistory();
-          const skipped = data.skippedCount || 0;
-          const attempted = data.attempted ?? (data.total - skipped);
-          if (attempted === 0) {
-            showToast(`Tất cả ${data.total} người chơi đã nhập code này trước đó — không có gì để làm`, 'info');
-          } else if (data.successCount > 0) {
-            const skipMsg = skipped > 0 ? ` (bỏ qua ${skipped} đã nhập)` : '';
-            showToast(`Thành công: ${data.successCount}/${attempted}${skipMsg}`, 'success');
-          } else {
-            showToast(`Thất bại tất cả ${attempted} người chơi`, 'error');
+          const prior = findPriorCode(code);
+          if (prior && prior.uniquePlayersSucceeded >= players.length) {
+            showToast(`${codeLabel}: đã nhập cho tất cả người chơi — bỏ qua`, 'info');
+            skipCodes++;
+            continue;
           }
-        } else {
-          showToast('Không nhận được kết quả từ server', 'error');
+
+          btn.innerHTML = `<span class="spinner"></span> ${codeLabel}`;
+          updateProgress(0, players.length, `${codeLabel} — đang bắt đầu...`);
+          resetProgressDetail(players.length);
+
+          try {
+            const res = await fetch('/api/redeem', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code, delayMs })
+            });
+
+            if (!res.ok || !res.body) {
+              const data = await res.json().catch(() => ({ message: 'Lỗi không xác định' }));
+              showToast(`${codeLabel}: ${data.message || 'Lỗi không xác định'}`, 'error');
+              failCodes++;
+              continue;
+            }
+
+            const data = await consumeRedeemStream(res);
+            if (data && data.success !== undefined) {
+              aggregated.push({ code, data });
+              const skipped = data.skippedCount || 0;
+              const attempted = data.attempted ?? (data.total - skipped);
+              if (attempted === 0) {
+                showToast(`${codeLabel}: tất cả đã nhập trước đó`, 'info');
+                skipCodes++;
+              } else if (data.successCount > 0) {
+                const skipMsg = skipped > 0 ? ` (bỏ qua ${skipped})` : '';
+                showToast(`${codeLabel}: ${data.successCount}/${attempted}${skipMsg}`, 'success');
+                okCodes++;
+              } else {
+                showToast(`${codeLabel}: thất bại tất cả ${attempted}`, 'error');
+                failCodes++;
+              }
+            } else {
+              showToast(`${codeLabel}: không nhận được kết quả từ server`, 'error');
+              failCodes++;
+            }
+          } catch (err) {
+            showToast(`${codeLabel}: lỗi kết nối — ${err.message}`, 'error');
+            failCodes++;
+          }
+
+          // Reload history after each code so prior-code check stays accurate
+          await loadHistory();
+
+          // Nghỉ giữa các code để tránh spam server
+          if (i < codes.length - 1) {
+            await new Promise(r => setTimeout(r, Math.max(500, delayMs)));
+          }
         }
-      } catch (err) {
-        showToast('Lỗi kết nối: ' + err.message, 'error');
+
+        // Hiển thị kết quả của code cuối cùng (nếu có)
+        if (aggregated.length > 0) {
+          showResults(aggregated[aggregated.length - 1].data);
+        }
+
+        if (codes.length > 1) {
+          showToast(`Đã xử lý ${codes.length} code: ${okCodes} OK, ${skipCodes} bỏ qua, ${failCodes} lỗi`, okCodes > 0 ? 'success' : 'info');
+        }
       } finally {
         isRedeeming = false;
         progress.classList.remove('active');
