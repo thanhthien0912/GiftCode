@@ -143,6 +143,19 @@ async function handleRedeem(req, res) {
   const players = await db.loadPlayers();
   if (players.length === 0) return res.status(400).json({ success: false, message: 'Chưa có người chơi nào' });
 
+  const trimmedCode = code.trim();
+
+  // Build set of roleIds that have already successfully redeemed this code in the past.
+  const history = await db.loadHistory();
+  const priorSuccess = new Set();
+  for (const h of history) {
+    if (!h || (h.code || '').trim() !== trimmedCode) continue;
+    if (!Array.isArray(h.results)) continue;
+    for (const r of h.results) {
+      if (r && r.success && r.roleId) priorSuccess.add(String(r.roleId));
+    }
+  }
+
   const delay = Math.max(delayMs || 1000, 500);
   const results = [];
 
@@ -157,10 +170,14 @@ async function handleRedeem(req, res) {
     if (typeof res.flush === 'function') res.flush();
   };
 
-  send({ type: 'start', total: players.length, code: code.trim() });
+  const skippedCount = players.filter(p => priorSuccess.has(String(p.roleId))).length;
+  send({ type: 'start', total: players.length, code: trimmedCode, skipped: skippedCount });
 
+  let lastCalledIdx = -1;
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
+    const alreadyDone = priorSuccess.has(String(p.roleId));
+
     send({
       type: 'progress',
       index: i,
@@ -168,41 +185,68 @@ async function handleRedeem(req, res) {
       total: players.length,
       roleId: p.roleId,
       roleName: p.roleName,
-      serverId: p.serverId
+      serverId: p.serverId,
+      skipped: alreadyDone
     });
 
     let entry;
+    if (alreadyDone) {
+      entry = {
+        roleId: p.roleId,
+        roleName: p.roleName,
+        success: true,
+        skipped: true,
+        errorCode: 0,
+        message: 'Đã nhập code này trước đó — bỏ qua'
+      };
+      results.push(entry);
+      send({ type: 'result', index: i, current: i + 1, total: players.length, result: entry });
+      continue;
+    }
+
+    // Delay between actual API calls (not between skipped players)
+    if (lastCalledIdx !== -1) await sleep(delay);
+
     try {
-      const r = await redeemCode({ code: code.trim(), roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' });
+      const r = await redeemCode({ code: trimmedCode, roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' });
       entry = { roleId: p.roleId, roleName: p.roleName, ...r };
     } catch (err) {
       entry = { roleId: p.roleId, roleName: p.roleName, success: false, errorCode: -1, message: err.message };
     }
     results.push(entry);
+    lastCalledIdx = i;
     send({ type: 'result', index: i, current: i + 1, total: players.length, result: entry });
-
-    if (i < players.length - 1) await sleep(delay);
   }
 
-  const successCount = results.filter(r => r.success).length;
+  const successCount = results.filter(r => r.success && !r.skipped).length;
+  const skipResultCount = results.filter(r => r.skipped).length;
+  const failCount = results.filter(r => !r.success).length;
+  const attempted = players.length - skipResultCount;
+
   const summary = {
     success: true,
-    code: code.trim(),
+    code: trimmedCode,
     total: players.length,
+    attempted,
     successCount,
-    failCount: players.length - successCount,
+    failCount,
+    skippedCount: skipResultCount,
     results
   };
 
-  await db.addHistory({
-    id: uuidv4(),
-    code: code.trim(),
-    timestamp: new Date().toISOString(),
-    totalPlayers: players.length,
-    successCount,
-    failCount: players.length - successCount,
-    results
-  });
+  // Only record history when there was at least one real attempt
+  if (attempted > 0) {
+    await db.addHistory({
+      id: uuidv4(),
+      code: trimmedCode,
+      timestamp: new Date().toISOString(),
+      totalPlayers: players.length,
+      successCount,
+      failCount,
+      skippedCount: skipResultCount,
+      results
+    });
+  }
 
   send({ type: 'done', summary });
   res.end();

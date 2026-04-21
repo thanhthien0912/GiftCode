@@ -510,6 +510,15 @@
 
     .progress-log-row.ok .dot { background: var(--teal); }
     .progress-log-row.fail .dot { background: var(--red); }
+    .progress-log-row.skip .dot { background: var(--text-tertiary); }
+    .progress-log-row .tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--bg-warm);
+      color: var(--text-tertiary);
+    }
 
     .progress-log-row .name {
       flex: 1;
@@ -1426,13 +1435,9 @@
       if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
 
       const prior = findPriorCode(code);
-      if (prior) {
-        const when = formatTime(prior.lastTimestamp);
-        const ok = confirm(`Code "${code}" đã từng nhập rồi (${prior.runs} lần, gần nhất ${when}). Vẫn tiếp tục?`);
-        if (!ok) {
-          showToast('Đã hủy — code này đã nhập trước đó', 'info');
-          return;
-        }
+      if (prior && prior.uniquePlayersSucceeded >= players.length) {
+        showToast(`Code "${code}" đã được nhập cho tất cả ${players.length} người chơi`, 'info');
+        return;
       }
 
       const delayMs = parseInt(document.getElementById('delayMs').value) || 1500;
@@ -1465,10 +1470,15 @@
         if (data && data.success !== undefined) {
           showResults(data);
           loadHistory();
-          if (data.successCount > 0) {
-            showToast(`Thành công: ${data.successCount}/${data.total}`, 'success');
+          const skipped = data.skippedCount || 0;
+          const attempted = data.attempted ?? (data.total - skipped);
+          if (attempted === 0) {
+            showToast(`Tất cả ${data.total} người chơi đã nhập code này trước đó — không có gì để làm`, 'info');
+          } else if (data.successCount > 0) {
+            const skipMsg = skipped > 0 ? ` (bỏ qua ${skipped} đã nhập)` : '';
+            showToast(`Thành công: ${data.successCount}/${attempted}${skipMsg}`, 'success');
           } else {
-            showToast(`Thất bại tất cả ${data.total} người chơi`, 'error');
+            showToast(`Thất bại tất cả ${attempted} người chơi`, 'error');
           }
         } else {
           showToast('Không nhận được kết quả từ server', 'error');
@@ -1558,13 +1568,21 @@
       document.getElementById('progressCurrentName').textContent = evt.roleName || evt.roleId;
       document.getElementById('progressCurrentMeta').textContent = `ID ${evt.roleId} · ${evt.current}/${evt.total}`;
       const status = document.getElementById('progressCurrentStatus');
-      status.textContent = 'Đang gửi';
-      status.className = 'progress-current-status pending';
+      if (evt.skipped) {
+        status.textContent = 'Bỏ qua';
+        status.className = 'progress-current-status pending';
+      } else {
+        status.textContent = 'Đang gửi';
+        status.className = 'progress-current-status pending';
+      }
     }
 
     function markCurrentResult(result) {
       const status = document.getElementById('progressCurrentStatus');
-      if (result.success) {
+      if (result.skipped) {
+        status.textContent = 'Đã nhập';
+        status.className = 'progress-current-status pending';
+      } else if (result.success) {
         status.textContent = 'OK';
         status.className = 'progress-current-status ok';
       } else {
@@ -1584,11 +1602,14 @@
     function appendProgressLog(result) {
       const log = document.getElementById('progressLog');
       const row = document.createElement('div');
-      row.className = `progress-log-row ${result.success ? 'ok' : 'fail'}`;
+      const cls = result.skipped ? 'skip' : (result.success ? 'ok' : 'fail');
+      row.className = `progress-log-row ${cls}`;
+      const tag = result.skipped ? '<span class="tag">đã nhập</span>' : '';
       row.innerHTML = `
         <span class="dot"></span>
         <span class="name">${escapeHtml(result.roleName || result.roleId)}</span>
         <span class="id">${escapeHtml(result.roleId)}</span>
+        ${tag}
       `;
       log.prepend(row);
       // keep log reasonable
@@ -1606,6 +1627,13 @@
       const section = document.getElementById('resultsSection');
       section.classList.add('active');
 
+      const skippedTile = (data.skippedCount && data.skippedCount > 0)
+        ? `<div class="summary-tile s-total" style="opacity:.85">
+             <div class="val">${data.skippedCount}</div>
+             <div class="lbl">Bỏ qua (đã nhập)</div>
+           </div>`
+        : '';
+
       document.getElementById('summaryGrid').innerHTML = `
         <div class="summary-tile s-total">
           <div class="val">${data.total}</div>
@@ -1619,15 +1647,21 @@
           <div class="val">${data.failCount}</div>
           <div class="lbl">Thất bại</div>
         </div>
+        ${skippedTile}
       `;
 
-      document.getElementById('resultsList').innerHTML = data.results.map(r => `
-        <div class="result-row ${r.success ? 'ok' : 'fail'}">
-          <span class="result-tag ${r.success ? 'ok' : 'fail'}">${r.success ? 'OK' : 'FAIL'}</span>
-          <span class="result-id">${escapeHtml(r.roleName && r.roleName !== r.roleId ? r.roleName : '')}${r.roleName && r.roleName !== r.roleId ? ' · ' : ''}ID: ${escapeHtml(r.roleId)}</span>
-          <span class="result-msg">${escapeHtml(r.message)}${r.detail && r.detail !== r.message ? ' <span style="color:var(--text-tertiary);font-size:11px">(' + escapeHtml(r.detail) + ')</span>' : ''}</span>
-        </div>
-      `).join('');
+      document.getElementById('resultsList').innerHTML = data.results.map(r => {
+        const tagCls = r.skipped ? 'fail' : (r.success ? 'ok' : 'fail');
+        const tagLbl = r.skipped ? 'SKIP' : (r.success ? 'OK' : 'FAIL');
+        const rowCls = r.skipped ? 'fail' : (r.success ? 'ok' : 'fail');
+        return `
+          <div class="result-row ${rowCls}" ${r.skipped ? 'style="opacity:.7"' : ''}>
+            <span class="result-tag ${tagCls}">${tagLbl}</span>
+            <span class="result-id">${escapeHtml(r.roleName && r.roleName !== r.roleId ? r.roleName : '')}${r.roleName && r.roleName !== r.roleId ? ' · ' : ''}ID: ${escapeHtml(r.roleId)}</span>
+            <span class="result-msg">${escapeHtml(r.message)}${r.detail && r.detail !== r.message ? ' <span style="color:var(--text-tertiary);font-size:11px">(' + escapeHtml(r.detail) + ')</span>' : ''}</span>
+          </div>
+        `;
+      }).join('');
 
       section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1703,10 +1737,14 @@
         const totalPlayers = h.totalPlayers ?? (Array.isArray(h.results) ? h.results.length : 0);
         const success = h.successCount ?? (Array.isArray(h.results) ? h.results.filter(r => r.success).length : 0);
         const fail = h.failCount ?? (totalPlayers - success);
+        const successfulRoles = Array.isArray(h.results)
+          ? h.results.filter(r => r && r.success && r.roleId).map(r => String(r.roleId))
+          : [];
         if (existing) {
           existing.runs += 1;
           existing.totalSuccess += success;
           existing.totalFail += fail;
+          for (const id of successfulRoles) existing.successRoleIds.add(id);
           if (new Date(ts) > new Date(existing.lastTimestamp)) existing.lastTimestamp = ts;
           if (new Date(ts) < new Date(existing.firstTimestamp)) existing.firstTimestamp = ts;
         } else {
@@ -1715,12 +1753,15 @@
             runs: 1,
             totalSuccess: success,
             totalFail: fail,
+            successRoleIds: new Set(successfulRoles),
             firstTimestamp: ts,
             lastTimestamp: ts
           });
         }
       }
-      return [...map.values()].sort((a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp));
+      return [...map.values()]
+        .map(c => ({ ...c, uniquePlayersSucceeded: c.successRoleIds.size }))
+        .sort((a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp));
     }
 
     function findPriorCode(code) {
