@@ -76,7 +76,13 @@ async function clearHistory() {
   await db.collection('history').deleteMany({});
 }
 
+async function removeHistory(id) {
+  const db = await getDb();
+  const result = await db.collection('history').deleteOne({ id });
+  return result.deletedCount > 0;
+}
+
 module.exports = {
   loadPlayers, savePlayers, addPlayer, removePlayer, findPlayer,
-  loadHistory, saveHistory, addHistory, clearHistory
+  loadHistory, saveHistory, addHistory, clearHistory, removeHistory
 };

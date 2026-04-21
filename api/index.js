@@ -276,6 +276,14 @@ async function handleHistory(req, res) {
   res.status(405).json({ success: false, message: 'Method not allowed' });
 }
 
+async function handleHistoryItem(req, res, id) {
+  if (req.method !== 'DELETE') return res.status(405).json({ success: false, message: 'Method not allowed' });
+  if (!id) return res.status(400).json({ success: false, message: 'Thiếu id' });
+  const ok = await db.removeHistory(id);
+  if (!ok) return res.status(404).json({ success: false, message: 'Không tìm thấy lịch sử' });
+  res.json({ success: true });
+}
+
 // ============== Route: Export ==============
 
 async function handleExport(req, res) {
@@ -331,6 +339,7 @@ module.exports = async (req, res) => {
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
     if (url === '/api/redeem') return handleRedeem(req, res);
     if (url === '/api/history') return handleHistory(req, res);
+    if (url.startsWith('/api/history/')) return handleHistoryItem(req, res, url.slice('/api/history/'.length));
     if (url === '/api/export') return handleExport(req, res);
     if (url === '/api/import') return handleImport(req, res);
 

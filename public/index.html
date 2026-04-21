@@ -1247,10 +1247,6 @@
             <span class="icon amber">📋</span>
             Lịch sử nhập code
           </div>
-          <button class="btn btn-ghost" onclick="clearHistory()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-            Xóa
-          </button>
         </div>
         <div class="card-content">
           <div class="history-scroll" id="historyList">
@@ -1269,10 +1265,16 @@
             <span class="icon teal">📊</span>
             Kết quả nhập code
           </div>
-          <button class="btn btn-ghost" onclick="hideResults()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Đóng
-          </button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-danger-sm" id="deleteHistoryBtn" onclick="deleteCurrentHistory()" style="display:none">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              Xóa code này
+            </button>
+            <button class="btn btn-ghost" onclick="hideResults()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Đóng
+            </button>
+          </div>
         </div>
         <div class="card-content">
           <div class="summary-row" id="summaryGrid"></div>
@@ -1663,9 +1665,13 @@
       document.getElementById('progressCount').textContent = `${current}/${total}`;
     }
 
-    function showResults(data) {
+    function showResults(data, historyId = null) {
       const section = document.getElementById('resultsSection');
       section.classList.add('active');
+
+      currentHistoryId = historyId;
+      const delBtn = document.getElementById('deleteHistoryBtn');
+      if (delBtn) delBtn.style.display = historyId ? 'inline-flex' : 'none';
 
       const skippedTile = (data.skippedCount && data.skippedCount > 0)
         ? `<div class="summary-tile s-total" style="opacity:.85">
@@ -1708,6 +1714,9 @@
 
     function hideResults() {
       document.getElementById('resultsSection').classList.remove('active');
+      currentHistoryId = null;
+      const delBtn = document.getElementById('deleteHistoryBtn');
+      if (delBtn) delBtn.style.display = 'none';
     }
 
     // ============== HISTORY ==============
@@ -1747,6 +1756,8 @@
       `).join('');
     }
 
+    let currentHistoryId = null;
+
     function showHistoryDetail(id) {
       const item = history.find(h => h.id === id);
       if (!item) return;
@@ -1756,7 +1767,29 @@
         successCount: item.successCount,
         failCount: item.failCount,
         results: item.results
-      });
+      }, id);
+    }
+
+    async function deleteCurrentHistory() {
+      if (!currentHistoryId) return;
+      const item = history.find(h => h.id === currentHistoryId);
+      const codeLabel = item ? item.code : 'này';
+      if (!confirm(`Xóa lịch sử của code "${codeLabel}"?`)) return;
+
+      try {
+        const res = await fetch('/api/history/' + encodeURIComponent(currentHistoryId), { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          showToast(`Đã xóa lịch sử code "${codeLabel}"`, 'success');
+          currentHistoryId = null;
+          hideResults();
+          loadHistory();
+        } else {
+          showToast(data.message || 'Xóa thất bại', 'error');
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+      }
     }
 
     async function clearHistory() {
