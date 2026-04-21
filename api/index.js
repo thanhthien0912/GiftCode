@@ -90,14 +90,6 @@ async function handlePlayers(req, res) {
     return res.json({ success: true, data: player });
   }
 
-  if (req.method === 'DELETE') {
-    // Vercel: id from query param; Express: id from URL path
-    const id = req.query?.id || req.url.split('/').pop();
-    const deleted = await db.removePlayer(id);
-    if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy người chơi' });
-    return res.json({ success: true });
-  }
-
   res.status(405).json({ success: false, message: 'Method not allowed' });
 }
 
