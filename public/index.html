@@ -838,6 +838,177 @@
     .toast.error { background: var(--red-soft); color: var(--red); border-left: 3px solid var(--red); }
     .toast.info { background: var(--indigo-soft); color: var(--indigo); border-left: 3px solid var(--indigo); }
 
+    /* ======= MODAL ======= */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 18, 15, 0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      animation: fadeIn 200ms ease-out;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--border-shadow-lifted);
+      width: 100%;
+      max-width: 720px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalIn 250ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .modal-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-warm);
+      color: var(--text);
+    }
+
+    .modal-search {
+      padding: 12px 22px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .modal-search input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-warm);
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+
+    .modal-search input:focus {
+      outline: none;
+      border-color: var(--coral);
+      background: var(--surface);
+    }
+
+    .modal-search-meta {
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 14px 16px;
+    }
+
+    .code-summary-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      transition: background 150ms ease;
+    }
+
+    .code-summary-row:hover {
+      background: var(--bg-warm);
+    }
+
+    .code-summary-row + .code-summary-row {
+      border-top: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .code-summary-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .code-summary-time {
+      font-size: 11.5px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .code-summary-pills {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .code-summary-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .code-summary-pill.ok { background: var(--teal-soft); color: var(--teal); }
+    .code-summary-pill.fail { background: var(--red-soft); color: var(--red); }
+    .code-summary-pill.runs { background: var(--indigo-soft); color: var(--indigo); }
+
+    .modal-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: 13px;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
     .toast-exit {
       animation: toastOut 200ms ease-in forwards;
     }
@@ -909,6 +1080,28 @@
   <!-- Toast -->
   <div class="toast-stack" id="toastContainer"></div>
 
+  <!-- ====== CODE SUMMARY MODAL ====== -->
+  <div class="modal-backdrop" id="codeSummaryModal" onclick="closeCodeSummaryOnBackdrop(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title">
+          <span>📜</span>
+          Tổng hợp code đã nhập
+        </div>
+        <button class="modal-close" onclick="closeCodeSummary()" aria-label="Đóng">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-search">
+        <input type="text" id="codeSummarySearch" placeholder="Tìm code..." oninput="renderCodeSummary()">
+        <span class="modal-search-meta" id="codeSummaryMeta">0 code</span>
+      </div>
+      <div class="modal-body" id="codeSummaryBody">
+        <div class="modal-empty">Chưa có code nào</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="header">
     <div class="header-inner">
@@ -928,6 +1121,9 @@
           <span class="num" id="totalRedeems">0</span>
           <span class="label">lần nhập</span>
         </div>
+        <button class="btn-backup" onclick="openCodeSummary()" title="Xem tất cả code đã nhập">
+          📜 Tổng hợp code
+        </button>
         <button class="btn-backup" onclick="downloadBackup()" title="Tải backup dữ liệu">
           💾 Backup
         </button>
@@ -1229,6 +1425,16 @@
       if (!code) return showToast('Vui lòng nhập mã giftcode', 'error');
       if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
 
+      const prior = findPriorCode(code);
+      if (prior) {
+        const when = formatTime(prior.lastTimestamp);
+        const ok = confirm(`Code "${code}" đã từng nhập rồi (${prior.runs} lần, gần nhất ${when}). Vẫn tiếp tục?`);
+        if (!ok) {
+          showToast('Đã hủy — code này đã nhập trước đó', 'info');
+          return;
+        }
+      }
+
       const delayMs = parseInt(document.getElementById('delayMs').value) || 1500;
 
       isRedeeming = true;
@@ -1485,6 +1691,109 @@
       showToast('Đã xóa lịch sử', 'info');
       loadHistory();
     }
+
+    // ============== CODE SUMMARY ==============
+    function aggregateCodes() {
+      const map = new Map();
+      for (const h of history) {
+        const key = (h.code || '').trim();
+        if (!key) continue;
+        const existing = map.get(key);
+        const ts = h.timestamp;
+        const totalPlayers = h.totalPlayers ?? (Array.isArray(h.results) ? h.results.length : 0);
+        const success = h.successCount ?? (Array.isArray(h.results) ? h.results.filter(r => r.success).length : 0);
+        const fail = h.failCount ?? (totalPlayers - success);
+        if (existing) {
+          existing.runs += 1;
+          existing.totalSuccess += success;
+          existing.totalFail += fail;
+          if (new Date(ts) > new Date(existing.lastTimestamp)) existing.lastTimestamp = ts;
+          if (new Date(ts) < new Date(existing.firstTimestamp)) existing.firstTimestamp = ts;
+        } else {
+          map.set(key, {
+            code: key,
+            runs: 1,
+            totalSuccess: success,
+            totalFail: fail,
+            firstTimestamp: ts,
+            lastTimestamp: ts
+          });
+        }
+      }
+      return [...map.values()].sort((a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp));
+    }
+
+    function findPriorCode(code) {
+      const needle = code.trim().toLowerCase();
+      if (!needle) return null;
+      return aggregateCodes().find(c => c.code.toLowerCase() === needle) || null;
+    }
+
+    function openCodeSummary() {
+      document.getElementById('codeSummaryModal').classList.add('active');
+      document.getElementById('codeSummarySearch').value = '';
+      renderCodeSummary();
+      setTimeout(() => document.getElementById('codeSummarySearch').focus(), 50);
+    }
+
+    function closeCodeSummary() {
+      document.getElementById('codeSummaryModal').classList.remove('active');
+    }
+
+    function closeCodeSummaryOnBackdrop(e) {
+      if (e.target.id === 'codeSummaryModal') closeCodeSummary();
+    }
+
+    function renderCodeSummary() {
+      const body = document.getElementById('codeSummaryBody');
+      const meta = document.getElementById('codeSummaryMeta');
+      const q = document.getElementById('codeSummarySearch').value.trim().toLowerCase();
+      const all = aggregateCodes();
+      const list = q ? all.filter(c => c.code.toLowerCase().includes(q)) : all;
+
+      meta.textContent = q
+        ? `${list.length}/${all.length} code`
+        : `${all.length} code`;
+
+      if (list.length === 0) {
+        body.innerHTML = `<div class="modal-empty">${all.length === 0 ? 'Chưa có code nào' : 'Không tìm thấy code khớp'}</div>`;
+        return;
+      }
+
+      body.innerHTML = list.map(c => {
+        const timeLabel = c.runs > 1
+          ? `Gần nhất ${formatTime(c.lastTimestamp)}`
+          : formatTime(c.lastTimestamp);
+        return `
+          <div class="code-summary-row" onclick="useCodeFromSummary('${escapeAttr(c.code)}')" title="Click để đưa vào ô nhập">
+            <div style="flex:1;min-width:0">
+              <div class="code-summary-code">${escapeHtml(c.code)}</div>
+              <div class="code-summary-time">${timeLabel}</div>
+            </div>
+            <div class="code-summary-pills">
+              ${c.runs > 1 ? `<span class="code-summary-pill runs">×${c.runs}</span>` : ''}
+              <span class="code-summary-pill ok">${c.totalSuccess} ✓</span>
+              ${c.totalFail > 0 ? `<span class="code-summary-pill fail">${c.totalFail} ✗</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function useCodeFromSummary(code) {
+      document.getElementById('codeInput').value = code;
+      closeCodeSummary();
+      showToast(`Đã chọn code: ${code}`, 'info');
+      document.getElementById('codeInput').focus();
+    }
+
+    function escapeAttr(str) {
+      return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeCodeSummary();
+    });
 
     // ============== HELPERS ==============
     function updateStats() {
