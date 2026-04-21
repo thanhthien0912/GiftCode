@@ -156,7 +156,7 @@ async function handleRedeem(req, res) {
     }
   }
 
-  const delay = 1000;
+  const delay = Math.max(delayMs || 1000, 500);
   const results = [];
 
   // Stream NDJSON: client reads each line as it arrives so it can show "đang nhập cho ai".

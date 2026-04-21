@@ -1155,9 +1155,10 @@
             <span class="icon coral">⚡</span>
             Nhập Giftcode
           </div>
-          <div class="delay-control" title="Delay giữa các lần gọi API (đã cố định)">
+          <div class="delay-control">
             <span>Delay</span>
-            <span style="font-weight:700;color:var(--text)">1000 ms</span>
+            <input type="number" id="delayMs" value="1000" min="500" step="100">
+            <span>ms</span>
           </div>
         </div>
         <div class="card-content">
@@ -1439,7 +1440,7 @@
         return;
       }
 
-      const delayMs = 1000;
+      const delayMs = parseInt(document.getElementById('delayMs').value) || 1000;
 
       isRedeeming = true;
       const btn = document.getElementById('redeemBtn');
