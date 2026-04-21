@@ -146,18 +146,54 @@ async function handleRedeem(req, res) {
   const delay = Math.max(delayMs || 1000, 500);
   const results = [];
 
+  // Stream NDJSON: client reads each line as it arrives so it can show "đang nhập cho ai".
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  const send = (obj) => {
+    res.write(JSON.stringify(obj) + '\n');
+    if (typeof res.flush === 'function') res.flush();
+  };
+
+  send({ type: 'start', total: players.length, code: code.trim() });
+
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
+    send({
+      type: 'progress',
+      index: i,
+      current: i + 1,
+      total: players.length,
+      roleId: p.roleId,
+      roleName: p.roleName,
+      serverId: p.serverId
+    });
+
+    let entry;
     try {
       const r = await redeemCode({ code: code.trim(), roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' });
-      results.push({ roleId: p.roleId, roleName: p.roleName, ...r });
+      entry = { roleId: p.roleId, roleName: p.roleName, ...r };
     } catch (err) {
-      results.push({ roleId: p.roleId, roleName: p.roleName, success: false, errorCode: -1, message: err.message });
+      entry = { roleId: p.roleId, roleName: p.roleName, success: false, errorCode: -1, message: err.message };
     }
+    results.push(entry);
+    send({ type: 'result', index: i, current: i + 1, total: players.length, result: entry });
+
     if (i < players.length - 1) await sleep(delay);
   }
 
   const successCount = results.filter(r => r.success).length;
+  const summary = {
+    success: true,
+    code: code.trim(),
+    total: players.length,
+    successCount,
+    failCount: players.length - successCount,
+    results
+  };
+
   await db.addHistory({
     id: uuidv4(),
     code: code.trim(),
@@ -168,7 +204,8 @@ async function handleRedeem(req, res) {
     results
   });
 
-  res.json({ success: true, code: code.trim(), total: players.length, successCount, failCount: players.length - successCount, results });
+  send({ type: 'done', summary });
+  res.end();
 }
 
 // ============== Route: Redeem Single ==============

@@ -413,6 +413,120 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .progress-current {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--border-shadow);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .progress-current .spinner {
+      flex-shrink: 0;
+    }
+
+    .progress-current-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .progress-current-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .progress-current-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .progress-current-status {
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+
+    .progress-current-status.ok {
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+
+    .progress-current-status.fail {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .progress-current-status.pending {
+      background: var(--bg-warm);
+      color: var(--text-tertiary);
+    }
+
+    .progress-log {
+      margin-top: 8px;
+      max-height: 168px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11.5px;
+      font-variant-numeric: tabular-nums;
+      padding-right: 4px;
+    }
+
+    .progress-log:empty {
+      display: none;
+    }
+
+    .progress-log-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      background: var(--surface-hover);
+      animation: fadeUp 200ms ease-out;
+    }
+
+    .progress-log-row .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .progress-log-row.ok .dot { background: var(--teal); }
+    .progress-log-row.fail .dot { background: var(--red); }
+
+    .progress-log-row .name {
+      flex: 1;
+      min-width: 0;
+      color: var(--text);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .progress-log-row .id {
+      color: var(--text-tertiary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+    }
+
     /* ======= TABS ======= */
     .tab-group {
       display: flex;
@@ -861,6 +975,15 @@
               <span id="progressText">Đang nhập...</span>
               <span id="progressCount">0/0</span>
             </div>
+            <div class="progress-current" id="progressCurrent">
+              <span class="spinner"></span>
+              <div class="progress-current-text">
+                <div class="progress-current-name" id="progressCurrentName">—</div>
+                <div class="progress-current-meta" id="progressCurrentMeta">Đang chuẩn bị…</div>
+              </div>
+              <span class="progress-current-status" id="progressCurrentStatus"></span>
+            </div>
+            <div class="progress-log" id="progressLog"></div>
           </div>
         </div>
       </div>
@@ -1116,6 +1239,7 @@
       const progress = document.getElementById('progressContainer');
       progress.classList.add('active');
       updateProgress(0, players.length, 'Đang bắt đầu...');
+      resetProgressDetail(players.length);
 
       try {
         const res = await fetch('/api/redeem', {
@@ -1124,19 +1248,24 @@
           body: JSON.stringify({ code, delayMs })
         });
 
-        const data = await res.json();
-        
-        if (data.success !== undefined) {
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({ message: 'Lỗi không xác định' }));
+          showToast(data.message || 'Lỗi không xác định', 'error');
+          return;
+        }
+
+        const data = await consumeRedeemStream(res);
+
+        if (data && data.success !== undefined) {
           showResults(data);
           loadHistory();
-          
           if (data.successCount > 0) {
             showToast(`Thành công: ${data.successCount}/${data.total}`, 'success');
           } else {
             showToast(`Thất bại tất cả ${data.total} người chơi`, 'error');
           }
         } else {
-          showToast(data.message || 'Lỗi không xác định', 'error');
+          showToast('Không nhận được kết quả từ server', 'error');
         }
       } catch (err) {
         showToast('Lỗi kết nối: ' + err.message, 'error');
@@ -1157,6 +1286,107 @@
           }
         }, 1000);
       }
+    }
+
+    async function consumeRedeemStream(res) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let summary = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let idx;
+        while ((idx = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!line) continue;
+          let evt;
+          try { evt = JSON.parse(line); } catch { continue; }
+          handleRedeemEvent(evt);
+          if (evt.type === 'done') summary = evt.summary;
+        }
+      }
+
+      const tail = buffer.trim();
+      if (tail) {
+        try {
+          const evt = JSON.parse(tail);
+          handleRedeemEvent(evt);
+          if (evt.type === 'done') summary = evt.summary;
+        } catch { /* ignore */ }
+      }
+
+      return summary;
+    }
+
+    function handleRedeemEvent(evt) {
+      if (evt.type === 'start') {
+        updateProgress(0, evt.total, `Bắt đầu với ${evt.total} người chơi`);
+      } else if (evt.type === 'progress') {
+        updateProgress(evt.current - 1, evt.total, `Đang nhập (${evt.current}/${evt.total})`);
+        setCurrentPlayer(evt);
+      } else if (evt.type === 'result') {
+        updateProgress(evt.current, evt.total, `Đang nhập (${evt.current}/${evt.total})`);
+        markCurrentResult(evt.result);
+        appendProgressLog(evt.result);
+      } else if (evt.type === 'done') {
+        updateProgress(evt.summary.total, evt.summary.total, 'Hoàn tất');
+        clearCurrentPlayer();
+      }
+    }
+
+    function resetProgressDetail(total) {
+      document.getElementById('progressLog').innerHTML = '';
+      document.getElementById('progressCurrentName').textContent = '—';
+      document.getElementById('progressCurrentMeta').textContent = `0 / ${total}`;
+      const status = document.getElementById('progressCurrentStatus');
+      status.textContent = 'Chờ…';
+      status.className = 'progress-current-status pending';
+    }
+
+    function setCurrentPlayer(evt) {
+      document.getElementById('progressCurrentName').textContent = evt.roleName || evt.roleId;
+      document.getElementById('progressCurrentMeta').textContent = `ID ${evt.roleId} · ${evt.current}/${evt.total}`;
+      const status = document.getElementById('progressCurrentStatus');
+      status.textContent = 'Đang gửi';
+      status.className = 'progress-current-status pending';
+    }
+
+    function markCurrentResult(result) {
+      const status = document.getElementById('progressCurrentStatus');
+      if (result.success) {
+        status.textContent = 'OK';
+        status.className = 'progress-current-status ok';
+      } else {
+        status.textContent = 'Lỗi';
+        status.className = 'progress-current-status fail';
+      }
+    }
+
+    function clearCurrentPlayer() {
+      document.getElementById('progressCurrentName').textContent = 'Hoàn tất';
+      document.getElementById('progressCurrentMeta').textContent = '';
+      const status = document.getElementById('progressCurrentStatus');
+      status.textContent = '✓';
+      status.className = 'progress-current-status ok';
+    }
+
+    function appendProgressLog(result) {
+      const log = document.getElementById('progressLog');
+      const row = document.createElement('div');
+      row.className = `progress-log-row ${result.success ? 'ok' : 'fail'}`;
+      row.innerHTML = `
+        <span class="dot"></span>
+        <span class="name">${escapeHtml(result.roleName || result.roleId)}</span>
+        <span class="id">${escapeHtml(result.roleId)}</span>
+      `;
+      log.prepend(row);
+      // keep log reasonable
+      while (log.children.length > 30) log.removeChild(log.lastChild);
     }
 
     function updateProgress(current, total, text) {
