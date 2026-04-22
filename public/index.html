@@ -1093,6 +1093,60 @@
     }
 
     /* ======= PLAYER HISTORY MODAL ======= */
+    .player-redeem-bar {
+      display: flex;
+      gap: 10px;
+      padding: 12px 22px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      align-items: center;
+    }
+
+    .player-redeem-bar input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-warm);
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+
+    .player-redeem-bar input:focus {
+      outline: none;
+      border-color: var(--coral);
+      background: var(--surface);
+    }
+
+    .btn-player-redeem {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--coral) 0%, #f2836e 100%);
+      color: #fff;
+      font-size: 12.5px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(232, 97, 77, 0.25);
+      transition: transform 80ms ease, box-shadow 150ms ease, opacity 150ms ease;
+    }
+
+    .btn-player-redeem:hover:not(:disabled) {
+      box-shadow: 0 4px 14px rgba(232, 97, 77, 0.35);
+    }
+
+    .btn-player-redeem:active:not(:disabled) { transform: scale(0.97); }
+
+    .btn-player-redeem:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .player-history-summary {
       display: flex;
       gap: 10px;
@@ -1310,6 +1364,13 @@
         </button>
       </div>
       <div class="player-history-summary" id="playerHistorySummary"></div>
+      <div class="player-redeem-bar">
+        <input type="text" id="playerRedeemInput" placeholder="Nhập mã giftcode cho người này (nhiều mã cách nhau bằng khoảng trắng hoặc xuống dòng)..." onkeydown="if(event.key==='Enter'){event.preventDefault();redeemForCurrentPlayer();}">
+        <button class="btn-player-redeem" id="playerRedeemBtn" onclick="redeemForCurrentPlayer()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+          Nhập cho người này
+        </button>
+      </div>
       <div class="modal-search">
         <input type="text" id="playerHistorySearch" placeholder="Tìm code..." oninput="renderPlayerHistory()">
         <span class="modal-search-meta" id="playerHistoryMeta">0 lần</span>
@@ -2185,9 +2246,11 @@
       document.getElementById('playerHistoryTitle').textContent =
         `${currentPlayerHistory.roleName}${currentPlayerHistory.roleName !== currentPlayerHistory.roleId ? ' · ' + currentPlayerHistory.roleId : ''}`;
       document.getElementById('playerHistorySearch').value = '';
+      document.getElementById('playerRedeemInput').value = '';
+      document.getElementById('playerRedeemBtn').disabled = false;
       document.getElementById('playerHistoryModal').classList.add('active');
       renderPlayerHistory();
-      setTimeout(() => document.getElementById('playerHistorySearch').focus(), 50);
+      setTimeout(() => document.getElementById('playerRedeemInput').focus(), 50);
     }
 
     function closePlayerHistory() {
@@ -2253,6 +2316,90 @@
           </div>
         `;
       }).join('');
+    }
+
+    async function redeemForCurrentPlayer() {
+      const input = document.getElementById('playerRedeemInput');
+      const btn = document.getElementById('playerRedeemBtn');
+      const raw = input.value.trim();
+      if (!raw) return showToast('Vui lòng nhập mã giftcode', 'error');
+      if (!currentPlayerHistory.roleId) return showToast('Không xác định được người chơi', 'error');
+
+      const codes = [...new Set(raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+      if (codes.length === 0) return showToast('Không tìm thấy code hợp lệ', 'error');
+
+      // Chặn code đã từng thành công cho chính player này
+      const playerHistory = aggregatePlayerHistory(currentPlayerHistory.roleId, currentPlayerHistory.serverId);
+      const alreadyOk = new Set(
+        playerHistory.filter(e => e.success).map(e => e.code.toLowerCase())
+      );
+
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      input.disabled = true;
+
+      let okCount = 0, failCount = 0, skipCount = 0;
+      const playerLabel = currentPlayerHistory.roleName || currentPlayerHistory.roleId;
+
+      try {
+        for (let i = 0; i < codes.length; i++) {
+          const code = codes[i];
+          const codeLabel = codes.length > 1 ? `[${i + 1}/${codes.length}] ${code}` : code;
+
+          if (alreadyOk.has(code.toLowerCase())) {
+            showToast(`${code}: đã nhập trước đó cho ${playerLabel} — bỏ qua`, 'info');
+            skipCount++;
+            continue;
+          }
+
+          btn.innerHTML = `<span class="spinner"></span> ${codes.length > 1 ? `${i + 1}/${codes.length}` : 'Đang nhập...'}`;
+
+          try {
+            const res = await fetch('/api/redeem/single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code,
+                roleId: currentPlayerHistory.roleId,
+                roleName: currentPlayerHistory.roleName,
+                serverId: currentPlayerHistory.serverId || '2'
+              })
+            });
+            const data = await res.json().catch(() => null);
+
+            if (data && data.success) {
+              okCount++;
+              alreadyOk.add(code.toLowerCase());
+              showToast(`${codeLabel}: thành công`, 'success');
+            } else {
+              failCount++;
+              const msg = (data && data.message) || 'Thất bại';
+              showToast(`${codeLabel}: ${msg}`, 'error');
+            }
+          } catch (err) {
+            failCount++;
+            showToast(`${codeLabel}: lỗi kết nối — ${err.message}`, 'error');
+          }
+
+          // Nghỉ nhẹ giữa các code để tránh spam server
+          if (i < codes.length - 1) {
+            await new Promise(r => setTimeout(r, 800));
+          }
+        }
+
+        if (codes.length > 1) {
+          showToast(`${playerLabel}: ${okCount} OK, ${skipCount} bỏ qua, ${failCount} lỗi`, okCount > 0 ? 'success' : 'info');
+        }
+
+        input.value = '';
+        await loadHistory(); // refresh global history để re-render modal + stats
+        renderPlayerHistory();
+      } finally {
+        btn.disabled = false;
+        input.disabled = false;
+        btn.innerHTML = originalHTML;
+        input.focus();
+      }
     }
 
     function escapeAttr(str) {

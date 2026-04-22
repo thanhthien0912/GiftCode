@@ -260,10 +260,44 @@ async function handleRedeemSingle(req, res) {
   const { code, roleId, roleName, serverId } = parseBody(req);
   if (!code || !roleId) return res.status(400).json({ success: false, message: 'Code và roleId là bắt buộc' });
 
+  const trimmedCode = String(code).trim();
+  const sid = serverId || '2';
+  const rname = (roleName || roleId).toString();
+
   try {
-    const result = await redeemCode({ code: code.trim(), roleId, roleName: roleName || roleId, serverId: serverId || '2', gameCode: '661' });
+    const result = await redeemCode({ code: trimmedCode, roleId, roleName: rname, serverId: sid, gameCode: '661' });
+    const entry = { roleId, roleName: rname, serverId: sid, ...result };
+    const success = !!result.success;
+
+    // Ghi history single-redeem với cùng shape như redeem all
+    await db.addHistory({
+      id: uuidv4(),
+      code: trimmedCode,
+      timestamp: new Date().toISOString(),
+      totalPlayers: 1,
+      successCount: success ? 1 : 0,
+      failCount: success ? 0 : 1,
+      skippedCount: 0,
+      single: true,
+      results: [entry]
+    });
+
     res.json({ success: true, ...result });
   } catch (err) {
+    const entry = { roleId, roleName: rname, serverId: sid, success: false, errorCode: -1, message: err.message };
+    try {
+      await db.addHistory({
+        id: uuidv4(),
+        code: trimmedCode,
+        timestamp: new Date().toISOString(),
+        totalPlayers: 1,
+        successCount: 0,
+        failCount: 1,
+        skippedCount: 0,
+        single: true,
+        results: [entry]
+      });
+    } catch (_) { /* ghi history lỗi không chặn response */ }
     res.json({ success: false, errorCode: -1, message: err.message });
   }
 }
