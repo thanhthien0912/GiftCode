@@ -6,12 +6,26 @@ const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const DB_NAME = process.env.MONGODB_DB || 'giftcode';
 
 let cachedClient = null;
+let indexesEnsured = false;
 
 async function getDb() {
   if (cachedClient) return cachedClient.db(DB_NAME);
   cachedClient = new MongoClient(MONGO_URI);
   await cachedClient.connect();
-  return cachedClient.db(DB_NAME);
+  const db = cachedClient.db(DB_NAME);
+  if (!indexesEnsured) {
+    try {
+      await db.collection('history').createIndex({ timestamp: -1 });
+      await db.collection('history').createIndex({ id: 1 });
+      await db.collection('players').createIndex({ id: 1 });
+      await db.collection('players').createIndex({ roleId: 1, serverId: 1 });
+      indexesEnsured = true;
+    } catch (e) {
+      // Index creation lỗi không nên chặn app
+      console.warn('Index ensure warning:', e.message);
+    }
+  }
+  return db;
 }
 
 // ============== Players ==============
@@ -48,7 +62,7 @@ async function findPlayer(roleId, serverId) {
 
 async function loadHistory() {
   const db = await getDb();
-  return db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 }).limit(100).toArray();
+  return db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 }).toArray();
 }
 
 async function saveHistory(history) {
@@ -60,15 +74,7 @@ async function saveHistory(history) {
 
 async function addHistory(entry) {
   const db = await getDb();
-  const col = db.collection('history');
-  await col.insertOne({ ...entry });
-  // Keep max 100
-  const count = await col.countDocuments();
-  if (count > 100) {
-    const oldest = await col.find().sort({ timestamp: 1 }).limit(count - 100).toArray();
-    const ids = oldest.map(h => h._id);
-    await col.deleteMany({ _id: { $in: ids } });
-  }
+  await db.collection('history').insertOne({ ...entry });
 }
 
 async function clearHistory() {
