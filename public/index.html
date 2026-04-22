@@ -118,6 +118,54 @@
       letter-spacing: 0.2px;
     }
 
+    .logo-credit {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: linear-gradient(90deg, #e8614d 0%, #c5407a 50%, #5b5bd6 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+
+    .logo-credit::before {
+      content: "✦";
+      -webkit-text-fill-color: initial;
+      color: var(--coral);
+      font-size: 9px;
+      transform: translateY(-1px);
+    }
+
+    .logo-credit .heart {
+      -webkit-text-fill-color: initial;
+      color: #e8614d;
+      display: inline-block;
+      animation: heart-beat 1.6s ease-in-out infinite;
+      font-size: 10px;
+    }
+
+    .logo-credit .name {
+      font-weight: 700;
+    }
+
+    @keyframes heart-beat {
+      0%, 100% { transform: scale(1); }
+      15% { transform: scale(1.25); }
+      30% { transform: scale(1); }
+      45% { transform: scale(1.18); }
+      60% { transform: scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logo-credit .heart { animation: none; }
+    }
+
     .stats-bar {
       display: flex;
       gap: 6px;
@@ -945,6 +993,36 @@
       white-space: nowrap;
     }
 
+    .btn-copy-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: var(--radius-sm);
+      background: var(--bg-warm);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 150ms ease, border-color 150ms ease, transform 80ms ease;
+    }
+
+    .btn-copy-all:hover {
+      background: var(--surface);
+      border-color: var(--coral);
+      color: var(--coral);
+    }
+
+    .btn-copy-all:active { transform: scale(0.96); }
+
+    .btn-copy-all:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .modal-body {
       flex: 1;
       overflow-y: auto;
@@ -1104,6 +1182,9 @@
       <div class="modal-search">
         <input type="text" id="codeSummarySearch" placeholder="Tìm code..." oninput="renderCodeSummary()">
         <span class="modal-search-meta" id="codeSummaryMeta">0 code</span>
+        <button class="btn-copy-all" id="codeSummaryCopyBtn" onclick="copyAllCodesFromSummary()" title="Copy tất cả code (mỗi code 1 dòng)">
+          📋 Copy tất cả
+        </button>
       </div>
       <div class="modal-body" id="codeSummaryBody">
         <div class="modal-empty">Chưa có code nào</div>
@@ -1119,6 +1200,9 @@
         <div class="logo-text">
           <h1>Play Together VNG</h1>
           <span>Auto Giftcode Redeemer</span>
+          <div class="logo-credit">
+            Crafted with <span class="heart">❤</span> by <span class="name">Phan Thanh Thiên</span>
+          </div>
         </div>
       </div>
       <div class="stats-bar">
@@ -1803,8 +1887,9 @@
     function aggregateCodes() {
       const map = new Map();
       for (const h of history) {
-        const key = (h.code || '').trim();
-        if (!key) continue;
+        const raw = (h.code || '').trim();
+        if (!raw) continue;
+        const key = raw.toLowerCase();
         const existing = map.get(key);
         const ts = h.timestamp;
         const totalPlayers = h.totalPlayers ?? (Array.isArray(h.results) ? h.results.length : 0);
@@ -1818,11 +1903,14 @@
           existing.totalSuccess += success;
           existing.totalFail += fail;
           for (const id of successfulRoles) existing.successRoleIds.add(id);
-          if (new Date(ts) > new Date(existing.lastTimestamp)) existing.lastTimestamp = ts;
+          if (new Date(ts) > new Date(existing.lastTimestamp)) {
+            existing.lastTimestamp = ts;
+            existing.code = raw; // hiển thị bản gần nhất
+          }
           if (new Date(ts) < new Date(existing.firstTimestamp)) existing.firstTimestamp = ts;
         } else {
           map.set(key, {
-            code: key,
+            code: raw,
             runs: 1,
             totalSuccess: success,
             totalFail: fail,
@@ -1899,6 +1987,47 @@
       closeCodeSummary();
       showToast(`Đã chọn code: ${code}`, 'info');
       document.getElementById('codeInput').focus();
+    }
+
+    function copyAllCodesFromSummary() {
+      const q = document.getElementById('codeSummarySearch').value.trim().toLowerCase();
+      const all = aggregateCodes();
+      const list = q ? all.filter(c => c.code.toLowerCase().includes(q)) : all;
+      if (list.length === 0) {
+        showToast('Không có code nào để copy', 'info');
+        return;
+      }
+      // aggregateCodes() đã dedupe theo key; thêm Set() phòng hờ.
+      const seen = new Set();
+      const uniqueCodes = [];
+      for (const c of list) {
+        const k = c.code;
+        if (!seen.has(k)) { seen.add(k); uniqueCodes.push(k); }
+      }
+      const text = uniqueCodes.join('\n');
+      const onOk = () => showToast(`Đã copy ${uniqueCodes.length} code`, 'success');
+      const onFail = () => showToast('Copy thất bại', 'error');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onOk).catch(() => fallbackCopy(text, onOk, onFail));
+      } else {
+        fallbackCopy(text, onOk, onFail);
+      }
+    }
+
+    function fallbackCopy(text, onOk, onFail) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? onOk() : onFail();
+      } catch (e) {
+        onFail();
+      }
     }
 
     function escapeAttr(str) {
