@@ -3,3 +3,4 @@ node_modules/
 .artifacts/
 .bg-shell/
 .env
+giftcode-backup-*.json
