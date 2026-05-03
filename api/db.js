@@ -32,7 +32,7 @@ async function getDb() {
 
 async function loadPlayers() {
   const db = await getDb();
-  return db.collection('players').find({}, { projection: { _id: 0 } }).toArray();
+  return db.collection('players').find({}, { projection: { _id: 0 } }).sort({ sortOrder: 1, createdAt: 1 }).toArray();
 }
 
 async function savePlayers(players) {
@@ -88,7 +88,17 @@ async function removeHistory(id) {
   return result.deletedCount > 0;
 }
 
+async function reorderPlayers(orderedIds) {
+  const db = await getDb();
+  const col = db.collection('players');
+  const ops = orderedIds.map((id, i) => ({
+    updateOne: { filter: { id }, update: { $set: { sortOrder: i } } }
+  }));
+  if (ops.length > 0) await col.bulkWrite(ops);
+}
+
 module.exports = {
   loadPlayers, savePlayers, addPlayer, removePlayer, findPlayer,
+  reorderPlayers,
   loadHistory, saveHistory, addHistory, clearHistory, removeHistory
 };

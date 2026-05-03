@@ -79,11 +79,13 @@ async function handlePlayers(req, res) {
     const existing = await db.findPlayer(roleId.trim(), sid);
     if (existing) return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
 
+    const allPlayers = await db.loadPlayers();
     const player = {
       id: uuidv4(),
       roleId: roleId.trim(),
       roleName: (roleName || roleId).trim(),
       serverId: sid,
+      sortOrder: allPlayers.length,
       createdAt: new Date().toISOString()
     };
     await db.addPlayer(player);
@@ -119,17 +121,33 @@ async function handlePlayersBulk(req, res) {
   for (const entry of entries) {
     const exists = await db.findPlayer(entry.roleId, sid);
     if (exists) { skipped++; continue; }
+    const currentCount = (await db.loadPlayers()).length;
     await db.addPlayer({
       id: uuidv4(),
       roleId: entry.roleId,
       roleName: entry.roleName || entry.roleId,
       serverId: sid,
+      sortOrder: currentCount,
       createdAt: new Date().toISOString()
     });
     added++;
   }
 
   res.json({ success: true, added, skipped });
+}
+
+// ============== Route: Players Reorder ==============
+
+async function handlePlayersReorder(req, res) {
+  if (req.method !== 'PUT') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  const { orderedIds } = parseBody(req);
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+    return res.status(400).json({ success: false, message: 'orderedIds là bắt buộc (mảng player id)' });
+  }
+
+  await db.reorderPlayers(orderedIds);
+  res.json({ success: true });
 }
 
 // ============== Route: Redeem ==============
@@ -368,6 +386,7 @@ module.exports = async (req, res) => {
     const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
+    if (url === '/api/players/reorder') return handlePlayersReorder(req, res);
     if (url.startsWith('/api/players/')) return handlePlayers(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
