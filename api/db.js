@@ -35,22 +35,9 @@ async function loadPlayers() {
   return db.collection('players').find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray();
 }
 
-async function savePlayers(players) {
-  const db = await getDb();
-  const col = db.collection('players');
-  await col.deleteMany({});
-  if (players.length > 0) await col.insertMany(players);
-}
-
 async function addPlayer(player) {
   const db = await getDb();
   await db.collection('players').insertOne({ ...player });
-}
-
-async function removePlayer(id) {
-  const db = await getDb();
-  const result = await db.collection('players').deleteOne({ id });
-  return result.deletedCount > 0;
 }
 
 async function findPlayer(roleId, serverId) {
@@ -63,13 +50,6 @@ async function findPlayer(roleId, serverId) {
 async function loadHistory() {
   const db = await getDb();
   return db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 }).toArray();
-}
-
-async function saveHistory(history) {
-  const db = await getDb();
-  const col = db.collection('history');
-  await col.deleteMany({});
-  if (history.length > 0) await col.insertMany(history);
 }
 
 async function addHistory(entry) {
@@ -89,6 +69,6 @@ async function removeHistory(id) {
 }
 
 module.exports = {
-  loadPlayers, savePlayers, addPlayer, removePlayer, findPlayer,
-  loadHistory, saveHistory, addHistory, clearHistory, removeHistory
+  loadPlayers, addPlayer, findPlayer,
+  loadHistory, addHistory, clearHistory, removeHistory
 };

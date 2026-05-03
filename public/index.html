@@ -300,7 +300,7 @@
     }
 
     /* ======= INPUTS ======= */
-    input, textarea, select {
+    input, textarea {
       width: 100%;
       padding: 11px 14px;
       background: var(--bg);
@@ -1317,15 +1317,6 @@
     ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
 
-    /* ======= CUSTOM SELECT STYLE ======= */
-    select {
-      cursor: pointer;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239b958e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 32px;
-    }
   </style>
 </head>
 <body>
@@ -2056,27 +2047,6 @@
           showToast(`Đã xóa lịch sử code "${codeLabel}"`, 'success');
           currentHistoryId = null;
           hideResults();
-          loadHistory();
-        } else {
-          showToast(data.message || 'Xóa thất bại', 'error');
-        }
-      } catch (err) {
-        showToast('Lỗi kết nối: ' + err.message, 'error');
-      }
-    }
-
-    async function clearHistory() {
-      const password = prompt('Nhập mật khẩu admin để xóa toàn bộ lịch sử:');
-      if (!password) return;
-      try {
-        const res = await fetch('/api/history', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.success) {
-          showToast('Đã xóa lịch sử', 'success');
           loadHistory();
         } else {
           showToast(data.message || 'Xóa thất bại', 'error');

@@ -3,7 +3,6 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/players/bulk", "destination": "/api/index?route=/api/players/bulk" },
-    { "source": "/api/players/:id", "destination": "/api/index?route=/api/players/:id&id=:id" },
     { "source": "/api/players", "destination": "/api/index?route=/api/players" },
     { "source": "/api/redeem/single", "destination": "/api/index?route=/api/redeem/single" },
     { "source": "/api/redeem", "destination": "/api/index?route=/api/redeem" },

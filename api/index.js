@@ -348,7 +348,6 @@ module.exports = async (req, res) => {
     const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
-    if (url.startsWith('/api/players/')) return handlePlayers(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
     if (url === '/api/redeem') return handleRedeem(req, res);
