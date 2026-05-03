@@ -151,6 +151,21 @@
 
     .logo-credit .name {
       font-weight: 700;
+      background: linear-gradient(90deg, #e8614d, #f0a030, #2dd4bf, #5b5bd6, #c5407a, #e8614d);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: rgb-shift 4s linear infinite;
+    }
+
+    @keyframes rgb-shift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logo-credit .name { animation: none; }
     }
 
     .stats-bar {
