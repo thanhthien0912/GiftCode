@@ -1548,6 +1548,7 @@
     // ============== STATE ==============
     let players = [];
     let history = [];
+    let historyFullLoaded = false;
     let isRedeeming = false;
 
     // ============== INIT ==============
@@ -1577,13 +1578,10 @@
         if (data.success) {
           players = data.players;
           history = data.history;
+          historyFullLoaded = !data.hasMore;
           renderPlayers();
           renderHistory();
           updateStats();
-          // Load full history ngầm sau khi trang đã hiện
-          if (data.hasMore) {
-            loadHistory();
-          }
           return;
         }
       } catch (_) { /* fallback below */ }
@@ -2001,9 +1999,19 @@
       const data = await res.json();
       if (data.success) {
         history = data.data;
+        historyFullLoaded = true;
         renderHistory();
         updateStats();
       }
+    }
+
+    async function loadAllHistory() {
+      const btn = document.getElementById('loadMoreHistoryBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Đang tải...';
+      }
+      await loadHistory();
     }
 
     function renderHistory() {
@@ -2017,7 +2025,7 @@
         return;
       }
 
-      list.innerHTML = history.map(h => `
+      const rows = history.map(h => `
         <div class="history-row" onclick="showHistoryDetail('${h.id}')">
           <div class="history-top">
             <span class="history-code">${escapeHtml(h.code)}</span>
@@ -2030,6 +2038,14 @@
           </div>
         </div>
       `).join('');
+
+      const loadMoreBtn = !historyFullLoaded
+        ? `<button class="btn btn-ghost" id="loadMoreHistoryBtn" onclick="loadAllHistory()" style="width:100%;margin-top:8px;justify-content:center">
+            Xem tất cả lịch sử
+          </button>`
+        : '';
+
+      list.innerHTML = rows + loadMoreBtn;
     }
 
     let currentHistoryId = null;

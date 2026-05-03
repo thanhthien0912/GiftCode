@@ -324,9 +324,9 @@ async function handleInit(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
   const [players, history] = await Promise.all([
     db.loadPlayers(),
-    db.loadHistory(20) // Chỉ load 20 gần nhất khi khởi tạo
+    db.loadHistory(10) // Chỉ load 10 gần nhất khi khởi tạo
   ]);
-  res.json({ success: true, players, history, hasMore: history.length === 20 });
+  res.json({ success: true, players, history, hasMore: history.length === 10 });
 }
 
 // ============== Route: History ==============
