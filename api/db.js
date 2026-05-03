@@ -47,9 +47,11 @@ async function findPlayer(roleId, serverId) {
 
 // ============== History ==============
 
-async function loadHistory() {
+async function loadHistory(limit) {
   const db = await getDb();
-  return db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 }).toArray();
+  let cursor = db.collection('history').find({}, { projection: { _id: 0 } }).sort({ timestamp: -1 });
+  if (limit) cursor = cursor.limit(limit);
+  return cursor.toArray();
 }
 
 async function addHistory(entry) {

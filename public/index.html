@@ -1580,6 +1580,10 @@
           renderPlayers();
           renderHistory();
           updateStats();
+          // Load full history ngầm sau khi trang đã hiện
+          if (data.hasMore) {
+            loadHistory();
+          }
           return;
         }
       } catch (_) { /* fallback below */ }
