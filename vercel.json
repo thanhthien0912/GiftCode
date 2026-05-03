@@ -3,14 +3,11 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/players/bulk", "destination": "/api/index?route=/api/players/bulk" },
-    { "source": "/api/players/reorder", "destination": "/api/index?route=/api/players/reorder" },
     { "source": "/api/players/:id", "destination": "/api/index?route=/api/players/:id&id=:id" },
     { "source": "/api/players", "destination": "/api/index?route=/api/players" },
     { "source": "/api/redeem/single", "destination": "/api/index?route=/api/redeem/single" },
     { "source": "/api/redeem", "destination": "/api/index?route=/api/redeem" },
     { "source": "/api/history", "destination": "/api/index?route=/api/history" },
-    { "source": "/api/history/:id", "destination": "/api/index?route=/api/history/:id&id=:id" },
-    { "source": "/api/export", "destination": "/api/index?route=/api/export" },
-    { "source": "/api/import", "destination": "/api/index?route=/api/import" }
+    { "source": "/api/history/:id", "destination": "/api/index?route=/api/history/:id&id=:id" }
   ]
 }

@@ -79,13 +79,11 @@ async function handlePlayers(req, res) {
     const existing = await db.findPlayer(roleId.trim(), sid);
     if (existing) return res.status(400).json({ success: false, message: 'Người chơi này đã tồn tại' });
 
-    const allPlayers = await db.loadPlayers();
     const player = {
       id: uuidv4(),
       roleId: roleId.trim(),
       roleName: (roleName || roleId).trim(),
       serverId: sid,
-      sortOrder: allPlayers.length,
       createdAt: new Date().toISOString()
     };
     await db.addPlayer(player);
@@ -121,33 +119,17 @@ async function handlePlayersBulk(req, res) {
   for (const entry of entries) {
     const exists = await db.findPlayer(entry.roleId, sid);
     if (exists) { skipped++; continue; }
-    const currentCount = (await db.loadPlayers()).length;
     await db.addPlayer({
       id: uuidv4(),
       roleId: entry.roleId,
       roleName: entry.roleName || entry.roleId,
       serverId: sid,
-      sortOrder: currentCount,
       createdAt: new Date().toISOString()
     });
     added++;
   }
 
   res.json({ success: true, added, skipped });
-}
-
-// ============== Route: Players Reorder ==============
-
-async function handlePlayersReorder(req, res) {
-  if (req.method !== 'PUT') return res.status(405).json({ success: false, message: 'Method not allowed' });
-
-  const { orderedIds } = parseBody(req);
-  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
-    return res.status(400).json({ success: false, message: 'orderedIds là bắt buộc (mảng player id)' });
-  }
-
-  await db.reorderPlayers(orderedIds);
-  res.json({ success: true });
 }
 
 // ============== Route: Redeem ==============
@@ -336,47 +318,6 @@ async function handleHistoryItem(req, res, id) {
   res.json({ success: true });
 }
 
-// ============== Route: Export ==============
-
-async function handleExport(req, res) {
-  const data = {
-    exportedAt: new Date().toISOString(),
-    players: await db.loadPlayers(),
-    history: await db.loadHistory()
-  };
-  res.setHeader('Content-Disposition', `attachment; filename="giftcode-backup-${new Date().toISOString().slice(0, 10)}.json"`);
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(data));
-}
-
-// ============== Route: Import ==============
-
-async function handleImport(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
-
-  const { players, history } = parseBody(req);
-  if (!players && !history) {
-    return res.status(400).json({ success: false, message: 'File backup không hợp lệ. Cần có "players" hoặc "history".' });
-  }
-
-  try {
-    if (Array.isArray(players)) await db.savePlayers(players);
-    if (Array.isArray(history)) await db.saveHistory(history.slice(0, 100));
-
-    const currentPlayers = await db.loadPlayers();
-    const currentHistory = await db.loadHistory();
-
-    res.json({
-      success: true,
-      message: 'Import thành công',
-      playerCount: currentPlayers.length,
-      historyCount: currentHistory.length
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Lỗi import: ' + err.message });
-  }
-}
-
 // ============== Main handler ==============
 
 module.exports = async (req, res) => {
@@ -386,16 +327,12 @@ module.exports = async (req, res) => {
     const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
-    if (url === '/api/players/reorder') return handlePlayersReorder(req, res);
     if (url.startsWith('/api/players/')) return handlePlayers(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
     if (url === '/api/redeem') return handleRedeem(req, res);
     if (url === '/api/history') return handleHistory(req, res);
     if (url.startsWith('/api/history/')) return handleHistoryItem(req, res, url.slice('/api/history/'.length));
-    if (url === '/api/export') return handleExport(req, res);
-    if (url === '/api/import') return handleImport(req, res);
-
     res.status(404).json({ success: false, message: 'Not found' });
   } catch (err) {
     console.error('Server error:', err);
