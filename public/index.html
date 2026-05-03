@@ -2042,10 +2042,15 @@
       if (!currentHistoryId) return;
       const item = history.find(h => h.id === currentHistoryId);
       const codeLabel = item ? item.code : 'này';
-      if (!confirm(`Xóa lịch sử của code "${codeLabel}"?`)) return;
+      const password = prompt(`Nhập mật khẩu admin để xóa lịch sử code "${codeLabel}":`);
+      if (!password) return;
 
       try {
-        const res = await fetch('/api/history/' + encodeURIComponent(currentHistoryId), { method: 'DELETE' });
+        const res = await fetch('/api/history/' + encodeURIComponent(currentHistoryId), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
           showToast(`Đã xóa lịch sử code "${codeLabel}"`, 'success');
@@ -2061,10 +2066,24 @@
     }
 
     async function clearHistory() {
-      if (!confirm('Xóa toàn bộ lịch sử nhập code?')) return;
-      await fetch('/api/history', { method: 'DELETE' });
-      showToast('Đã xóa lịch sử', 'info');
-      loadHistory();
+      const password = prompt('Nhập mật khẩu admin để xóa toàn bộ lịch sử:');
+      if (!password) return;
+      try {
+        const res = await fetch('/api/history', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          showToast('Đã xóa lịch sử', 'success');
+          loadHistory();
+        } else {
+          showToast(data.message || 'Xóa thất bại', 'error');
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+      }
     }
 
     // ============== CODE SUMMARY ==============

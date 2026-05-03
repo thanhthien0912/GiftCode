@@ -302,17 +302,38 @@ async function handleRedeemSingle(req, res) {
   }
 }
 
+// ============== Auth helper ==============
+
+function checkAdminPassword(req, res) {
+  const adminPw = process.env.ADMIN_PASSWORD;
+  if (!adminPw) {
+    res.status(503).json({ success: false, message: 'Chưa cấu hình mật khẩu admin trên server' });
+    return false;
+  }
+  const { password } = parseBody(req);
+  if (!password || password !== adminPw) {
+    res.status(403).json({ success: false, message: 'Sai mật khẩu' });
+    return false;
+  }
+  return true;
+}
+
 // ============== Route: History ==============
 
 async function handleHistory(req, res) {
   if (req.method === 'GET') return res.json({ success: true, data: await db.loadHistory() });
-  if (req.method === 'DELETE') { await db.clearHistory(); return res.json({ success: true }); }
+  if (req.method === 'DELETE') {
+    if (!checkAdminPassword(req, res)) return;
+    await db.clearHistory();
+    return res.json({ success: true });
+  }
   res.status(405).json({ success: false, message: 'Method not allowed' });
 }
 
 async function handleHistoryItem(req, res, id) {
   if (req.method !== 'DELETE') return res.status(405).json({ success: false, message: 'Method not allowed' });
   if (!id) return res.status(400).json({ success: false, message: 'Thiếu id' });
+  if (!checkAdminPassword(req, res)) return;
   const ok = await db.removeHistory(id);
   if (!ok) return res.status(404).json({ success: false, message: 'Không tìm thấy lịch sử' });
   res.json({ success: true });
