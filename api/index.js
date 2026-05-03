@@ -318,6 +318,14 @@ function checkAdminPassword(req, res) {
   return true;
 }
 
+// ============== Route: Init (combined load) ==============
+
+async function handleInit(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
+  const [players, history] = await Promise.all([db.loadPlayers(), db.loadHistory()]);
+  res.json({ success: true, players, history });
+}
+
 // ============== Route: History ==============
 
 async function handleHistory(req, res) {
@@ -347,6 +355,7 @@ module.exports = async (req, res) => {
     const rawUrl = req.query?.route || req.url.split('?')[0];
     const url = rawUrl.replace(/\/+$/, '');
 
+    if (url === '/api/init') return handleInit(req, res);
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);

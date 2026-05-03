@@ -1552,8 +1552,8 @@
 
     // ============== INIT ==============
     document.addEventListener('DOMContentLoaded', () => {
-      loadPlayers();
-      loadHistory();
+      // 1 request duy nhất lấy cả players + history — giảm cold start + round trip
+      loadInit();
 
       document.getElementById('roleIdInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') addPlayer();
@@ -1568,6 +1568,24 @@
         }
       });
     });
+
+    // ============== INIT ==============
+    async function loadInit() {
+      try {
+        const res = await fetch('/api/init');
+        const data = await res.json();
+        if (data.success) {
+          players = data.players;
+          history = data.history;
+          renderPlayers();
+          renderHistory();
+          updateStats();
+          return;
+        }
+      } catch (_) { /* fallback below */ }
+      // Fallback: load riêng nếu /api/init lỗi
+      await Promise.all([loadPlayers(), loadHistory()]);
+    }
 
     // ============== TOAST ==============
     function showToast(message, type = 'info') {
