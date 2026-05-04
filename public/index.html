@@ -2137,9 +2137,14 @@
       return aggregateCodes().find(c => c.code.toLowerCase() === needle) || null;
     }
 
-    function openCodeSummary() {
+    async function openCodeSummary() {
       document.getElementById('codeSummaryModal').classList.add('active');
       document.getElementById('codeSummarySearch').value = '';
+      // Cần full history để tổng hợp đúng tất cả code
+      if (!historyFullLoaded) {
+        document.getElementById('codeSummaryBody').innerHTML = '<div class="modal-empty">Đang tải dữ liệu...</div>';
+        await loadHistory();
+      }
       renderCodeSummary();
       setTimeout(() => document.getElementById('codeSummarySearch').focus(), 50);
     }
@@ -2264,7 +2269,7 @@
       return entries;
     }
 
-    function openPlayerHistory(roleId, serverId) {
+    async function openPlayerHistory(roleId, serverId) {
       const player = players.find(p => String(p.roleId) === String(roleId) && String(p.serverId) === String(serverId))
         || players.find(p => String(p.roleId) === String(roleId));
       currentPlayerHistory = {
@@ -2278,6 +2283,11 @@
       document.getElementById('playerRedeemInput').value = '';
       document.getElementById('playerRedeemBtn').disabled = false;
       document.getElementById('playerHistoryModal').classList.add('active');
+      // Cần full history để hiện đúng lịch sử player
+      if (!historyFullLoaded) {
+        document.getElementById('playerHistoryBody').innerHTML = '<div class="modal-empty">Đang tải dữ liệu...</div>';
+        await loadHistory();
+      }
       renderPlayerHistory();
       setTimeout(() => document.getElementById('playerRedeemInput').focus(), 50);
     }
