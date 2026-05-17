@@ -425,6 +425,155 @@
       border-radius: var(--radius-sm);
     }
 
+    /* ======= SOURCE AUTO-REDEEM ======= */
+    .auto-source-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .auto-source-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--bg-warm);
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .auto-source-status.on {
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+
+    .auto-source-status.off {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .auto-source-status.warn {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .auto-source-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .auto-source-grid { grid-template-columns: 1fr; }
+    }
+
+    .auto-source-stat {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+    }
+
+    .auto-source-stat .num {
+      display: block;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    .auto-source-stat .lbl {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .auto-source-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .auto-source-log {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .auto-source-log:empty {
+      display: none;
+    }
+
+    .auto-source-log-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      border: 1px solid rgba(0,0,0,0.04);
+      font-size: 12px;
+      line-height: 1.5;
+      animation: fadeUp 180ms ease-out;
+    }
+
+    .auto-source-log-row .mark {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .auto-source-log-row.success .mark { background: var(--teal); }
+    .auto-source-log-row.warn .mark { background: var(--amber); }
+    .auto-source-log-row.error .mark { background: var(--red); }
+    .auto-source-log-row.info .mark { background: var(--indigo); }
+
+    .auto-source-log-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .auto-source-log-title {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .auto-source-log-meta {
+      margin-top: 2px;
+      color: var(--text-tertiary);
+      font-size: 11px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .auto-source-log-time {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .auto-source-log-detail {
+      color: var(--text-secondary);
+      word-break: break-word;
+    }
+
     /* ======= PROGRESS ======= */
     .progress-wrap {
       margin-top: 16px;
@@ -755,6 +904,18 @@
       font-weight: 700;
       color: var(--coral);
       letter-spacing: 0.3px;
+    }
+
+    .history-auto-tag {
+      margin-left: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--teal);
+      background: var(--teal-soft);
+      padding: 2px 6px;
+      border-radius: 999px;
+      vertical-align: middle;
+      white-space: nowrap;
     }
 
     .history-time {
@@ -1452,6 +1613,42 @@
         </div>
       </div>
 
+      <!-- ====== SOURCE AUTO-REDEEM ====== -->
+      <div class="card full-width stagger-item">
+        <div class="card-head">
+          <div class="card-label">
+            <span class="icon teal">🔄</span>
+            Tự lấy code từ nhasangtaoptg.com
+          </div>
+          <div class="auto-source-actions">
+            <span class="auto-source-status on" id="autoSourceStatus">Đang khởi tạo…</span>
+            <button class="btn btn-ghost" id="autoSourceToggleBtn" onclick="toggleAutoSource()">Tắt auto</button>
+            <button class="btn btn-ghost" onclick="configureSourceInterval()">Chu kỳ</button>
+            <button class="btn btn-ghost" onclick="checkSourceNow()">Kiểm tra ngay</button>
+          </div>
+        </div>
+        <div class="card-content">
+          <div class="auto-source-grid">
+            <div class="auto-source-stat">
+              <span class="num" id="sourceActiveCount">0</span>
+              <span class="lbl">Code đang hoạt động</span>
+            </div>
+            <div class="auto-source-stat">
+              <span class="num" id="sourceNewCount">0</span>
+              <span class="lbl">Code mới</span>
+            </div>
+            <div class="auto-source-stat">
+              <span class="num" id="sourceLastCheck">—</span>
+              <span class="lbl">Vừa kiểm tra xong lúc</span>
+            </div>
+          </div>
+          <div class="auto-source-note">
+            Khi phát hiện code mới, hệ thống sẽ tự điền vào ô mã và bấm nhập luôn. Những code đã thấy trước đó sẽ không bị nhập lặp lại.
+          </div>
+          <div class="auto-source-log" id="autoSourceLog"></div>
+        </div>
+      </div>
+
       <!-- ====== PLAYERS ====== -->
       <div class="card stagger-item">
         <div class="card-head">
@@ -1550,11 +1747,20 @@
     let history = [];
     let historyFullLoaded = false;
     let isRedeeming = false;
+    let autoSourceEnabled = true;
+    let sourceBootstrapDone = false;
+    let sourceSeenCodes = new Set();
+    let sourceAutoQueue = [];
+    let sourceMonitorTimer = null;
+    let sourceCheckInFlight = false;
+    let sourceCheckIntervalMs = 30 * 60 * 1000;
 
     // ============== INIT ==============
     document.addEventListener('DOMContentLoaded', () => {
       // 1 request duy nhất lấy cả players + history — giảm cold start + round trip
       loadInit();
+      loadSourceMonitorState();
+      startSourceMonitor();
 
       document.getElementById('roleIdInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') addPlayer();
@@ -1582,11 +1788,268 @@
           renderPlayers();
           renderHistory();
           updateStats();
+          processAutoSourceQueue();
           return;
         }
       } catch (_) { /* fallback below */ }
       // Fallback: load riêng nếu /api/init lỗi
       await Promise.all([loadPlayers(), loadHistory()]);
+    }
+
+    function loadSourceMonitorState() {
+      try {
+        const enabledRaw = localStorage.getItem('ptgAutoSourceEnabled');
+        if (enabledRaw !== null) autoSourceEnabled = enabledRaw === 'true';
+
+        const intervalRaw = localStorage.getItem('ptgAutoSourceIntervalMs');
+        const parsedInterval = Number(intervalRaw);
+        if (Number.isFinite(parsedInterval) && parsedInterval >= 5000) {
+          sourceCheckIntervalMs = Math.min(Math.round(parsedInterval), 60 * 60 * 1000);
+        }
+
+        const seenRaw = localStorage.getItem('ptgAutoSourceSeenCodes');
+        if (seenRaw) {
+          const parsed = JSON.parse(seenRaw);
+          if (Array.isArray(parsed)) {
+            sourceSeenCodes = new Set(parsed.map(normalizeSourceCode).filter(Boolean));
+          }
+        }
+
+        sourceBootstrapDone = localStorage.getItem('ptgAutoSourceBootstrapped') === 'true';
+      } catch (_) {
+        sourceSeenCodes = new Set();
+        sourceBootstrapDone = false;
+      }
+
+      syncAutoSourceUi();
+    }
+
+    function syncAutoSourceUi(message, tone) {
+      const status = document.getElementById('autoSourceStatus');
+      const toggle = document.getElementById('autoSourceToggleBtn');
+
+      if (status) {
+        if (message) {
+          status.textContent = message;
+        } else if (autoSourceEnabled) {
+          const intervalLabel = formatIntervalLabel(sourceCheckIntervalMs);
+          status.textContent = sourceBootstrapDone ? `Auto bật · ${intervalLabel}` : `Đang đồng bộ… · ${intervalLabel}`;
+        } else {
+          status.textContent = `Auto tắt · ${formatIntervalLabel(sourceCheckIntervalMs)}`;
+        }
+        status.className = `auto-source-status ${tone || (autoSourceEnabled ? 'on' : 'off')}`;
+      }
+
+      if (toggle) {
+        toggle.textContent = autoSourceEnabled ? 'Tắt auto' : 'Bật auto';
+      }
+    }
+
+    function persistSourceMonitorState() {
+      try {
+        localStorage.setItem('ptgAutoSourceEnabled', String(autoSourceEnabled));
+        localStorage.setItem('ptgAutoSourceSeenCodes', JSON.stringify([...sourceSeenCodes]));
+        localStorage.setItem('ptgAutoSourceBootstrapped', String(sourceBootstrapDone));
+        localStorage.setItem('ptgAutoSourceIntervalMs', String(sourceCheckIntervalMs));
+      } catch (_) {
+        /* localStorage không khả dụng thì bỏ qua */
+      }
+    }
+
+    function startSourceMonitor() {
+      if (sourceMonitorTimer) clearInterval(sourceMonitorTimer);
+      sourceMonitorTimer = setInterval(() => {
+        checkSourceNow();
+      }, sourceCheckIntervalMs);
+      checkSourceNow();
+    }
+
+    function toggleAutoSource() {
+      autoSourceEnabled = !autoSourceEnabled;
+      persistSourceMonitorState();
+      syncAutoSourceUi();
+      appendSourceLog(autoSourceEnabled ? 'Đã bật tự động lấy code' : 'Đã tắt tự động lấy code', autoSourceEnabled ? 'success' : 'warn');
+      showToast(autoSourceEnabled ? 'Đã bật tự động lấy code' : 'Đã tắt tự động lấy code', autoSourceEnabled ? 'success' : 'info');
+      if (autoSourceEnabled) processAutoSourceQueue();
+    }
+
+    function configureSourceInterval() {
+      const currentMinutes = Math.max(30, Math.round(sourceCheckIntervalMs / 60000));
+      const raw = window.prompt('Nhập chu kỳ kiểm tra mới (phút, tối thiểu 30):', String(currentMinutes));
+      if (raw === null) return;
+
+      const minutes = Number(raw);
+      if (!Number.isFinite(minutes) || minutes < 30) {
+        showToast('Chu kỳ kiểm tra phải từ 30 phút trở lên', 'error');
+        return;
+      }
+
+      sourceCheckIntervalMs = Math.min(Math.round(minutes * 60 * 1000), 60 * 60 * 1000);
+      persistSourceMonitorState();
+      startSourceMonitor();
+      const label = formatIntervalLabel(sourceCheckIntervalMs);
+      syncAutoSourceUi(`Chu kỳ kiểm tra: ${label}`, 'on');
+      appendSourceLog(`Đặt chu kỳ kiểm tra thành ${label}`, 'info');
+      showToast(`Đã đặt chu kỳ kiểm tra ${label}`, 'success');
+    }
+
+    function normalizeSourceCode(code) {
+      return String(code || '').trim().toUpperCase();
+    }
+
+    function formatSourceTime(iso) {
+      if (!iso) return '—';
+      try {
+        return new Date(iso).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch (_) {
+        return iso;
+      }
+    }
+
+    function formatIntervalLabel(ms) {
+      const minutes = Math.max(1, Math.round(ms / 60000));
+      if (minutes % 60 === 0) {
+        const hours = minutes / 60;
+        return `${hours}h`;
+      }
+      return `${minutes}p`;
+    }
+
+    function isAutoHistoryEntry(entry) {
+      return !!(entry && (entry.autoSource === true || entry.source === 'auto' || entry.auto === true));
+    }
+
+    function historyAutoTag(entry) {
+      return isAutoHistoryEntry(entry) ? '<span class="history-auto-tag">(auto nhập)</span>' : '';
+    }
+
+    function appendSourceLog(title, tone = 'info', detail = '') {
+      const log = document.getElementById('autoSourceLog');
+      if (!log) return;
+
+      const row = document.createElement('div');
+      row.className = `auto-source-log-row ${tone}`;
+      const time = formatSourceTime(new Date().toISOString());
+      row.innerHTML = `
+        <span class="mark"></span>
+        <div class="auto-source-log-main">
+          <div class="auto-source-log-title">${escapeHtml(title)}</div>
+          ${detail ? `<div class="auto-source-log-detail">${escapeHtml(detail)}</div>` : ''}
+          <div class="auto-source-log-meta"><span class="auto-source-log-time">${escapeHtml(time)}</span></div>
+        </div>
+      `;
+      log.prepend(row);
+      while (log.children.length > 30) log.removeChild(log.lastChild);
+    }
+
+    function queueSourceCodes(items) {
+      const codes = items.map(item => String(item.code || '').trim()).filter(Boolean);
+      const uniqueCodes = [];
+      const seen = new Set();
+      for (const code of codes) {
+        const key = normalizeSourceCode(code);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        uniqueCodes.push(code);
+      }
+
+      if (uniqueCodes.length === 0) return;
+
+      sourceAutoQueue = [
+        ...sourceAutoQueue,
+        ...uniqueCodes.filter(code => !sourceAutoQueue.some(existing => normalizeSourceCode(existing) === normalizeSourceCode(code)))
+      ];
+
+      const preview = items
+        .slice(0, 2)
+        .map(item => item.title || item.code)
+        .filter(Boolean)
+        .join(' · ');
+
+      const suffix = uniqueCodes.length > 2 ? ` và ${uniqueCodes.length - 2} code khác` : '';
+      showToast(`Phát hiện ${uniqueCodes.length} code mới${preview ? `: ${preview}` : ''}${suffix}`, 'success');
+      appendSourceLog(
+        `Phát hiện ${uniqueCodes.length} code mới`,
+        'success',
+        preview ? `${preview}${suffix}` : (suffix ? suffix.slice(4) : '')
+      );
+      syncAutoSourceUi(`Phát hiện ${uniqueCodes.length} code mới`, 'warn');
+      document.getElementById('codeInput').value = uniqueCodes.join('\n');
+      processAutoSourceQueue();
+    }
+
+    function processAutoSourceQueue() {
+      if (!autoSourceEnabled || isRedeeming) return;
+      if (sourceAutoQueue.length === 0) return;
+      if (players.length === 0) {
+        syncAutoSourceUi('Có code mới nhưng chưa có người chơi', 'warn');
+        return;
+      }
+
+      const codes = [...new Set(sourceAutoQueue.map(code => String(code || '').trim()).filter(Boolean))];
+      sourceAutoQueue = [];
+      document.getElementById('codeInput').value = codes.join('\n');
+      appendSourceLog(`Tự động nhập ${codes.length} code mới`, 'info', codes.join(', '));
+      redeemAll(true);
+    }
+
+    async function checkSourceNow() {
+      if (sourceCheckInFlight) return;
+      sourceCheckInFlight = true;
+
+      try {
+        syncAutoSourceUi(autoSourceEnabled ? 'Đang kiểm tra nguồn code…' : 'Đang kiểm tra thủ công…', 'warn');
+        appendSourceLog('Bắt đầu kiểm tra nguồn code', 'info', autoSourceEnabled ? 'Chế độ auto đang bật' : 'Chế độ kiểm tra thủ công');
+        const res = await fetch('/api/source/codes?activeOnly=1');
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.message || 'Không đọc được dữ liệu nguồn');
+        }
+
+        const codes = Array.isArray(data.codes) ? data.codes : [];
+        const activeCodes = codes.filter(item => item && item.code);
+        const activeCount = typeof data.activeCount === 'number' ? data.activeCount : activeCodes.length;
+        const newItems = activeCodes.filter(item => !sourceSeenCodes.has(normalizeSourceCode(item.code)));
+
+        document.getElementById('sourceActiveCount').textContent = String(activeCount);
+        document.getElementById('sourceLastCheck').textContent = formatSourceTime(data.updatedAt);
+
+        if (!sourceBootstrapDone) {
+          sourceSeenCodes = new Set(activeCodes.map(item => normalizeSourceCode(item.code)));
+          sourceBootstrapDone = true;
+          persistSourceMonitorState();
+          document.getElementById('sourceNewCount').textContent = '0';
+          appendSourceLog(`Đã đồng bộ ${activeCount} code nền`, 'success', 'Khởi tạo danh sách đã xong');
+          syncAutoSourceUi(`Đã đồng bộ ${activeCount} code nền`, 'on');
+          return data;
+        }
+
+        if (newItems.length > 0) {
+          newItems.forEach(item => sourceSeenCodes.add(normalizeSourceCode(item.code)));
+          persistSourceMonitorState();
+          document.getElementById('sourceNewCount').textContent = String(newItems.length);
+          queueSourceCodes(newItems);
+        } else {
+          document.getElementById('sourceNewCount').textContent = '0';
+          persistSourceMonitorState();
+          appendSourceLog(`Không có code mới trong ${activeCount} code đang hoạt động`, 'info');
+          syncAutoSourceUi(`Đã kiểm tra ${activeCount} code`, autoSourceEnabled ? 'on' : 'off');
+        }
+
+        return data;
+      } catch (err) {
+        syncAutoSourceUi('Lỗi lấy nguồn code', 'off');
+        appendSourceLog('Lỗi lấy nguồn code', 'error', err.message);
+        showToast(`Lỗi lấy code nguồn: ${err.message}`, 'error');
+        return null;
+      } finally {
+        sourceCheckInFlight = false;
+      }
     }
 
     // ============== TOAST ==============
@@ -1621,6 +2084,7 @@
         players = data.data;
         renderPlayers();
         updateStats();
+        processAutoSourceQueue();
       }
     }
 
@@ -1706,7 +2170,7 @@
     }
 
     // ============== REDEEM ==============
-    async function redeemAll() {
+    async function redeemAll(sourceAuto = false) {
       if (isRedeeming) return;
 
       const raw = document.getElementById('codeInput').value.trim();
@@ -1749,7 +2213,7 @@
             const res = await fetch('/api/redeem', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code, delayMs })
+              body: JSON.stringify({ code, delayMs, sourceAuto })
             });
 
             if (!res.ok || !res.body) {
@@ -1813,6 +2277,7 @@
             clearInterval(timer);
             btn.disabled = false;
             btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Nhập cho tất cả`;
+            processAutoSourceQueue();
           } else {
             btn.innerHTML = `⏳ Chờ ${cd}s...`;
           }
@@ -2028,7 +2493,7 @@
       const rows = history.map(h => `
         <div class="history-row" onclick="showHistoryDetail('${h.id}')">
           <div class="history-top">
-            <span class="history-code">${escapeHtml(h.code)}</span>
+            <span class="history-code">${escapeHtml(h.code)}${historyAutoTag(h)}</span>
             <span class="history-time">${formatTime(h.timestamp)}</span>
           </div>
           <div class="history-pills">
@@ -2055,6 +2520,7 @@
       if (!item) return;
       showResults({
         code: item.code,
+        autoSource: item.autoSource,
         total: item.totalPlayers,
         successCount: item.successCount,
         failCount: item.failCount,
@@ -2104,10 +2570,12 @@
         const successfulRoles = Array.isArray(h.results)
           ? h.results.filter(r => r && r.success && r.roleId).map(r => String(r.roleId))
           : [];
+        const autoRun = isAutoHistoryEntry(h);
         if (existing) {
           existing.runs += 1;
           existing.totalSuccess += success;
           existing.totalFail += fail;
+          if (autoRun) existing.autoRuns += 1;
           for (const id of successfulRoles) existing.successRoleIds.add(id);
           if (new Date(ts) > new Date(existing.lastTimestamp)) {
             existing.lastTimestamp = ts;
@@ -2120,6 +2588,7 @@
             runs: 1,
             totalSuccess: success,
             totalFail: fail,
+            autoRuns: autoRun ? 1 : 0,
             successRoleIds: new Set(successfulRoles),
             firstTimestamp: ts,
             lastTimestamp: ts
@@ -2180,10 +2649,11 @@
         return `
           <div class="code-summary-row" onclick="useCodeFromSummary('${escapeAttr(c.code)}')" title="Click để đưa vào ô nhập">
             <div style="flex:1;min-width:0">
-              <div class="code-summary-code">${escapeHtml(c.code)}</div>
+              <div class="code-summary-code">${escapeHtml(c.code)}${c.autoRuns > 0 ? ' <span class="history-auto-tag">(auto nhập)</span>' : ''}</div>
               <div class="code-summary-time">${timeLabel}</div>
             </div>
             <div class="code-summary-pills">
+              ${c.autoRuns > 0 ? `<span class="code-summary-pill runs">auto ×${c.autoRuns}</span>` : ''}
               ${c.runs > 1 ? `<span class="code-summary-pill runs">×${c.runs}</span>` : ''}
               <span class="code-summary-pill ok">${c.totalSuccess} ✓</span>
               ${c.totalFail > 0 ? `<span class="code-summary-pill fail">${c.totalFail} ✗</span>` : ''}
@@ -2466,6 +2936,27 @@
     function escapeHtml(str) {
       const div = document.createElement('div');
       div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+    }
+  </script>
+</body>
+</html>
+'vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+ str;
       return div.innerHTML;
     }
   </script>

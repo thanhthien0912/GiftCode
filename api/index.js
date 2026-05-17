@@ -54,6 +54,115 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ============== External source codes ==============
+
+const SOURCE_SITE_URL = 'https://nhasangtaoptg.com/';
+const SOURCE_SITE_TIMEOUT_MS = 15000;
+
+function decodeHtmlEntities(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, codePoint) => String.fromCharCode(Number(codePoint)));
+}
+
+function stripHtml(value) {
+  return decodeHtmlEntities(String(value || ''))
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractSourceCodes(html) {
+  const items = [];
+  const seen = new Set();
+  const regex = /data-src=['"]https:\/\/(?:stc-billing\.mto\.zing\.vn|scdn-stc-billing\.vnggames\.com)\/ptg\/([^'"?#]+)\.png['"]/gi;
+
+  for (const match of html.matchAll(regex)) {
+    const code = match[1];
+    const key = code.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const index = match.index || 0;
+    const window = html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 2500));
+    const titleMatch = window.match(/<div class='product-title'>([\s\S]*?)<\/div>/i);
+    const statusMatch = window.match(/<div class='product-price'>([\s\S]*?)<\/div>/i);
+    const title = stripHtml(titleMatch ? titleMatch[1] : '');
+    const status = stripHtml(statusMatch ? statusMatch[1] : '');
+    const active = !/h\u1ebft m\u00e3|hết mã/i.test(status);
+
+    items.push({
+      code,
+      title,
+      status,
+      active,
+      imageUrl: `https://stc-billing.mto.zing.vn/ptg/${code}.png`
+    });
+  }
+
+  return items;
+}
+
+async function fetchSourceCodes({ activeOnly = false } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SOURCE_SITE_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(SOURCE_SITE_URL, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Nguồn trả về HTTP ${res.status}`);
+    }
+
+    const html = await res.text();
+    const all = extractSourceCodes(html);
+    const codes = activeOnly ? all.filter(item => item.active) : all;
+
+    return {
+      sourceUrl: SOURCE_SITE_URL,
+      updatedAt: new Date().toISOString(),
+      totalCount: all.length,
+      activeCount: all.filter(item => item.active).length,
+      codes
+    };
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Hết thời gian chờ khi lấy code từ ${SOURCE_SITE_URL}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function handleSourceCodes(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  const activeOnly = ['1', 'true', 'yes', 'on'].includes(String(req.query?.activeOnly || '').toLowerCase());
+  try {
+    const data = await fetchSourceCodes({ activeOnly });
+    return res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Source code fetch error:', err);
+    return res.status(502).json({
+      success: false,
+      message: 'Không lấy được code từ nguồn',
+      detail: err.message,
+      sourceUrl: SOURCE_SITE_URL
+    });
+  }
+}
+
 // ============== Body parser ==============
 
 function parseBody(req) {
@@ -137,7 +246,7 @@ async function handlePlayersBulk(req, res) {
 async function handleRedeem(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const { code, delayMs } = parseBody(req);
+  const { code, delayMs, sourceAuto } = parseBody(req);
   if (!code || !code.trim()) return res.status(400).json({ success: false, message: 'Code không được để trống' });
 
   const players = await db.loadPlayers();
@@ -244,6 +353,7 @@ async function handleRedeem(req, res) {
       successCount,
       failCount,
       skippedCount: skipResultCount,
+      autoSource: !!sourceAuto,
       results
     });
   }
@@ -359,6 +469,7 @@ module.exports = async (req, res) => {
     const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/init') return handleInit(req, res);
+    if (url === '/api/source/codes') return handleSourceCodes(req, res);
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
