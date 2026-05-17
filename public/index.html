@@ -2005,7 +2005,13 @@
         syncAutoSourceUi(autoSourceEnabled ? 'Đang kiểm tra nguồn code…' : 'Đang kiểm tra thủ công…', 'warn');
         appendSourceLog('Bắt đầu kiểm tra nguồn code', 'info', autoSourceEnabled ? 'Chế độ auto đang bật' : 'Chế độ kiểm tra thủ công');
         const res = await fetch('/api/source/codes?activeOnly=1');
-        const data = await res.json();
+        const rawBody = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          throw new Error(`Nguồn trả về không phải JSON (HTTP ${res.status}): ${rawBody.slice(0, 120)}`);
+        }
 
         if (!data.success) {
           throw new Error(data.message || 'Không đọc được dữ liệu nguồn');
