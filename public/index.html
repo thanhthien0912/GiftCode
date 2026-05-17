@@ -2936,33 +2936,15 @@
 
     function formatTime(iso) {
       const d = new Date(iso);
-      return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
 
     function escapeHtml(str) {
       const div = document.createElement('div');
       div.textContent = str;
-      return div.innerHTML;
-    }
-  </script>
-</body>
-</html>
-    }
-  </script>
-</body>
-</html>
-'vi-VN', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-  </script>
-</body>
-</html>
- str;
       return div.innerHTML;
     }
   </script>
