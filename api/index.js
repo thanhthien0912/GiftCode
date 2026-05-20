@@ -57,6 +57,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ============== External source codes ==============
 
 const SOURCE_SITE_URL = 'https://nhasangtaoptg.com/';
+const SOURCE_CODES_TXT_URL = 'https://nhasangtaoptg.com/codes.txt';
 const SOURCE_SITE_TIMEOUT_MS = 15000;
 
 function decodeHtmlEntities(value) {
@@ -73,6 +74,13 @@ function stripHtml(value) {
   return decodeHtmlEntities(String(value || ''))
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractCodeFromButtonLabel(label) {
+  return String(label || '')
+    .replace(/^Copy\s*/i, '')
+    .replace(/\s*DIE\s*$/i, '')
     .trim();
 }
 
@@ -96,11 +104,70 @@ function normalizeImageUrl(imageUrl) {
   }
 }
 
+function extractSourceCodesFromText(text) {
+  const items = [];
+  const seen = new Set();
+  const lines = String(text || '').split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const match = line.match(/^(?:code|qt)\s*[^:]*:\s*(.+)$/i) || line.match(/^(.+?)\s*:\s*(.+)$/i);
+    const payload = match ? (match[2] || match[1] || '') : line;
+    const code = extractCodeFromButtonLabel(payload);
+    const key = code.toUpperCase();
+    if (!code || seen.has(key)) continue;
+    seen.add(key);
+
+    const status = match ? stripHtml(match[1] || '') : '';
+    items.push({
+      code,
+      title: code,
+      status,
+      active: true,
+      imageUrl: ''
+    });
+  }
+
+  return items;
+}
+
 function extractSourceCodes(html) {
   const items = [];
   const seen = new Set();
-  const cardRegex = /<div class=['"]product-card[^'"]*['"][\s\S]*?<img[\s\S]*?(?:data-src|src)=['"]([^'"]+\.png(?:\?[^'"]*)?)['"][\s\S]*?<div class=['"]product-title['"]>([\s\S]*?)<\/div>[\s\S]*?<div class=['"]product-price['"]>([\s\S]*?)<\/div>/gi;
 
+  // Layout mới: các mã nằm trong #server-code .code-item với .code-text và button aria-label.
+  const codeItemRegex = /<div class=['"]code-item['"][\s\S]*?<\/div>/gi;
+  for (const match of html.matchAll(codeItemRegex)) {
+    const block = match[0];
+    const labelMatch = block.match(/<span class=['"]label['"]>([\s\S]*?)<\/span>/i);
+    const buttonMatch = block.match(/aria-label=['"]([^'"]+)['"]/i);
+    const codeTextMatch = block.match(/<span class=['"]code-text['"]>([\s\S]*?)<\/span>\s*<button/i);
+
+    const code = extractCodeFromButtonLabel(buttonMatch ? buttonMatch[1] : stripHtml(codeTextMatch ? codeTextMatch[1] : ''));
+    const key = code.toUpperCase();
+    if (!code || seen.has(key)) continue;
+    seen.add(key);
+
+    const label = stripHtml(labelMatch ? labelMatch[1] : '');
+    const title = code;
+    const status = label;
+    const active = !/h\u1ebft m\u00e3|hết mã|hết mã|expired/i.test(label);
+
+    items.push({
+      code,
+      title,
+      status,
+      active,
+      imageUrl: ''
+    });
+  }
+
+  if (items.length > 0) return items;
+
+  // Fallback cho layout card cũ nếu site quay về markup trước đó.
+  const cardRegex = /<div class=['"]product-card[^'"]*['"][\s\S]*?<img[\s\S]*?(?:data-src|src)=['"]([^'"]+\.png(?:\?[^'"]*)?)['"][\s\S]*?<div class=['"]product-title['"]>([\s\S]*?)<\/div>[\s\S]*?<div class=['"]product-price['"]>([\s\S]*?)<\/div>/gi;
   for (const match of html.matchAll(cardRegex)) {
     const imageUrl = normalizeImageUrl(match[1]);
     const code = extractCodeFromImageUrl(imageUrl);
@@ -114,7 +181,7 @@ function extractSourceCodes(html) {
 
     items.push({
       code,
-      title,
+      title: title || code,
       status,
       active,
       imageUrl
@@ -123,7 +190,7 @@ function extractSourceCodes(html) {
 
   if (items.length > 0) return items;
 
-  // Fallback cho cấu trúc cũ nếu site quay về markup trước đó.
+  // Fallback cho cấu trúc cũ hơn nếu site quay về markup trước đó.
   const fallbackRegex = /data-src=['"]https:\/\/(?:stc-billing\.mto\.zing\.vn|scdn-stc-billing\.vnggames\.com)\/ptg\/([^'"?#]+)\.png['"]/gi;
   for (const match of html.matchAll(fallbackRegex)) {
     const code = match[1];
@@ -141,7 +208,7 @@ function extractSourceCodes(html) {
 
     items.push({
       code,
-      title,
+      title: title || code,
       status,
       active,
       imageUrl: `https://stc-billing.mto.zing.vn/ptg/${code}.png`
@@ -156,24 +223,43 @@ async function fetchSourceCodes({ activeOnly = false } = {}) {
   const timeout = setTimeout(() => controller.abort(), SOURCE_SITE_TIMEOUT_MS);
 
   try {
-    const res = await fetch(SOURCE_SITE_URL, {
+    const txtRes = await fetch(`${SOURCE_CODES_TXT_URL}?t=${Date.now()}`, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        'Accept': 'text/plain,text/html;q=0.9,*/*;q=0.8',
+        'Cache-Control': 'no-cache'
       }
     });
 
-    if (!res.ok) {
-      throw new Error(`Nguồn trả về HTTP ${res.status}`);
+    if (!txtRes.ok) {
+      throw new Error(`Nguồn trả về HTTP ${txtRes.status}`);
     }
 
-    const html = await res.text();
-    const all = extractSourceCodes(html);
+    const text = await txtRes.text();
+    let all = extractSourceCodesFromText(text);
+
+    if (all.length === 0) {
+      const htmlRes = await fetch(SOURCE_SITE_URL, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      });
+
+      if (!htmlRes.ok) {
+        throw new Error(`Nguồn HTML trả về HTTP ${htmlRes.status}`);
+      }
+
+      const html = await htmlRes.text();
+      all = extractSourceCodes(html);
+    }
+
     const codes = activeOnly ? all.filter(item => item.active) : all;
 
     return {
-      sourceUrl: SOURCE_SITE_URL,
+      sourceUrl: SOURCE_CODES_TXT_URL,
       updatedAt: new Date().toISOString(),
       totalCount: all.length,
       activeCount: all.filter(item => item.active).length,
@@ -181,7 +267,7 @@ async function fetchSourceCodes({ activeOnly = false } = {}) {
     };
   } catch (err) {
     if (err?.name === 'AbortError') {
-      throw new Error(`Hết thời gian chờ khi lấy code từ ${SOURCE_SITE_URL}`);
+      throw new Error(`Hết thời gian chờ khi lấy code từ ${SOURCE_CODES_TXT_URL}`);
     }
     throw err;
   } finally {

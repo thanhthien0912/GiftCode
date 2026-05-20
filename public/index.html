@@ -1754,6 +1754,7 @@
     let sourceMonitorTimer = null;
     let sourceCheckInFlight = false;
     let sourceCheckIntervalMs = 30 * 60 * 1000;
+    const SOURCE_PARSER_VERSION = 3;
 
     // ============== INIT ==============
     document.addEventListener('DOMContentLoaded', () => {
@@ -1815,7 +1816,14 @@
           }
         }
 
-        sourceBootstrapDone = localStorage.getItem('ptgAutoSourceBootstrapped') === 'true';
+        const parserVersionRaw = localStorage.getItem('ptgAutoSourceParserVersion');
+        const parserVersion = Number(parserVersionRaw);
+        if (parserVersion !== SOURCE_PARSER_VERSION) {
+          sourceSeenCodes = new Set();
+          sourceBootstrapDone = false;
+        }
+
+        sourceBootstrapDone = localStorage.getItem('ptgAutoSourceBootstrapped') === 'true' && parserVersion === SOURCE_PARSER_VERSION;
       } catch (_) {
         sourceSeenCodes = new Set();
         sourceBootstrapDone = false;
@@ -1850,7 +1858,7 @@
         localStorage.setItem('ptgAutoSourceEnabled', String(autoSourceEnabled));
         localStorage.setItem('ptgAutoSourceSeenCodes', JSON.stringify([...sourceSeenCodes]));
         localStorage.setItem('ptgAutoSourceBootstrapped', String(sourceBootstrapDone));
-        localStorage.setItem('ptgAutoSourceIntervalMs', String(sourceCheckIntervalMs));
+        localStorage.setItem('ptgAutoSourceParserVersion', String(SOURCE_PARSER_VERSION));
       } catch (_) {
         /* localStorage không khả dụng thì bỏ qua */
       }
