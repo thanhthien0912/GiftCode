@@ -1760,7 +1760,7 @@
       // 1 request duy nhất lấy cả players + history — giảm cold start + round trip
       loadInit();
       loadSourceMonitorState();
-      startSourceMonitor();
+      if (autoSourceEnabled) startSourceMonitor();
 
       document.getElementById('roleIdInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') addPlayer();
@@ -1856,8 +1856,21 @@
       }
     }
 
+    function stopSourceMonitor() {
+      if (sourceMonitorTimer) {
+        clearInterval(sourceMonitorTimer);
+        sourceMonitorTimer = null;
+      }
+    }
+
     function startSourceMonitor() {
-      if (sourceMonitorTimer) clearInterval(sourceMonitorTimer);
+      if (!autoSourceEnabled) {
+        stopSourceMonitor();
+        syncAutoSourceUi();
+        return;
+      }
+
+      stopSourceMonitor();
       sourceMonitorTimer = setInterval(() => {
         checkSourceNow();
       }, sourceCheckIntervalMs);
@@ -1866,6 +1879,15 @@
 
     function toggleAutoSource() {
       autoSourceEnabled = !autoSourceEnabled;
+
+      if (!autoSourceEnabled) {
+        stopSourceMonitor();
+        sourceAutoQueue = [];
+        sourceBootstrapDone = false;
+      } else {
+        startSourceMonitor();
+      }
+
       persistSourceMonitorState();
       syncAutoSourceUi();
       appendSourceLog(autoSourceEnabled ? 'Đã bật tự động lấy code' : 'Đã tắt tự động lấy code', autoSourceEnabled ? 'success' : 'warn');
@@ -1978,7 +2000,6 @@
         preview ? `${preview}${suffix}` : (suffix ? suffix.slice(4) : '')
       );
       syncAutoSourceUi(`Phát hiện ${uniqueCodes.length} code mới`, 'warn');
-      document.getElementById('codeInput').value = uniqueCodes.join('\n');
       processAutoSourceQueue();
     }
 
@@ -2024,6 +2045,13 @@
 
         document.getElementById('sourceActiveCount').textContent = String(activeCount);
         document.getElementById('sourceLastCheck').textContent = formatSourceTime(data.updatedAt);
+
+        if (!autoSourceEnabled) {
+          document.getElementById('sourceNewCount').textContent = '0';
+          appendSourceLog(`Đã kiểm tra ${activeCount} code`, 'info', 'Auto đang tắt nên không lấy code mới');
+          syncAutoSourceUi(`Đã kiểm tra ${activeCount} code`, 'off');
+          return data;
+        }
 
         if (!sourceBootstrapDone) {
           sourceSeenCodes = new Set(activeCodes.map(item => normalizeSourceCode(item.code)));

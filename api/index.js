@@ -76,12 +76,56 @@ function stripHtml(value) {
     .trim();
 }
 
+function extractCodeFromImageUrl(imageUrl) {
+  const rawUrl = String(imageUrl || '').trim();
+  if (!rawUrl) return '';
+
+  const withoutQuery = rawUrl.split(/[?#]/)[0];
+  const filename = withoutQuery.slice(withoutQuery.lastIndexOf('/') + 1);
+  const withoutExt = filename.replace(/\.png$/i, '');
+  return decodeURIComponent(withoutExt).trim();
+}
+
+function normalizeImageUrl(imageUrl) {
+  const rawUrl = String(imageUrl || '').trim();
+  if (!rawUrl) return '';
+  try {
+    return new URL(rawUrl, SOURCE_SITE_URL).href;
+  } catch {
+    return rawUrl;
+  }
+}
+
 function extractSourceCodes(html) {
   const items = [];
   const seen = new Set();
-  const regex = /data-src=['"]https:\/\/(?:stc-billing\.mto\.zing\.vn|scdn-stc-billing\.vnggames\.com)\/ptg\/([^'"?#]+)\.png['"]/gi;
+  const cardRegex = /<div class=['"]product-card[^'"]*['"][\s\S]*?<img[\s\S]*?(?:data-src|src)=['"]([^'"]+\.png(?:\?[^'"]*)?)['"][\s\S]*?<div class=['"]product-title['"]>([\s\S]*?)<\/div>[\s\S]*?<div class=['"]product-price['"]>([\s\S]*?)<\/div>/gi;
 
-  for (const match of html.matchAll(regex)) {
+  for (const match of html.matchAll(cardRegex)) {
+    const imageUrl = normalizeImageUrl(match[1]);
+    const code = extractCodeFromImageUrl(imageUrl);
+    const key = code.toUpperCase();
+    if (!code || seen.has(key)) continue;
+    seen.add(key);
+
+    const title = stripHtml(match[2]);
+    const status = stripHtml(match[3]);
+    const active = !/h\u1ebft m\u00e3|hết mã/i.test(status);
+
+    items.push({
+      code,
+      title,
+      status,
+      active,
+      imageUrl
+    });
+  }
+
+  if (items.length > 0) return items;
+
+  // Fallback cho cấu trúc cũ nếu site quay về markup trước đó.
+  const fallbackRegex = /data-src=['"]https:\/\/(?:stc-billing\.mto\.zing\.vn|scdn-stc-billing\.vnggames\.com)\/ptg\/([^'"?#]+)\.png['"]/gi;
+  for (const match of html.matchAll(fallbackRegex)) {
     const code = match[1];
     const key = code.toUpperCase();
     if (seen.has(key)) continue;
