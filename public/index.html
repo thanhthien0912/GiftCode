@@ -1624,7 +1624,7 @@
             <span class="auto-source-status on" id="autoSourceStatus">Đang khởi tạo…</span>
             <button class="btn btn-ghost" id="autoSourceToggleBtn" onclick="toggleAutoSource()">Tắt auto</button>
             <button class="btn btn-ghost" onclick="configureSourceInterval()">Chu kỳ</button>
-            <button class="btn btn-ghost" onclick="checkSourceNow()">Kiểm tra ngay</button>
+            <button class="btn btn-ghost" onclick="checkSourceNow(true)">Kiểm tra ngay</button>
           </div>
         </div>
         <div class="card-content">
@@ -1643,7 +1643,7 @@
             </div>
           </div>
           <div class="auto-source-note">
-            Khi phát hiện code mới, hệ thống sẽ tự điền vào ô mã và bấm nhập luôn. Những code đã thấy trước đó sẽ không bị nhập lặp lại.
+            Khi phát hiện code mới, hệ thống sẽ nạp code vào ô mã để bạn xem trước. Chỉ khi auto đang bật thì nó mới tự nhập tiếp.
           </div>
           <div class="auto-source-log" id="autoSourceLog"></div>
         </div>
@@ -1976,6 +1976,15 @@
       while (log.children.length > 30) log.removeChild(log.lastChild);
     }
 
+    function renderSourcePreview(items, tone = 'warn', label = 'code mới') {
+      const codes = [...new Set(items.map(item => String(item.code || '').trim()).filter(Boolean))];
+      const input = document.getElementById('codeInput');
+      if (input) input.value = codes.join('\n');
+      document.getElementById('sourceNewCount').textContent = String(codes.length);
+      appendSourceLog(`Đã nạp ${codes.length} ${label} vào ô nhập`, 'info', codes.join(', '));
+      syncAutoSourceUi(codes.length > 0 ? `Đã nạp ${codes.length} ${label} vào ô nhập` : 'Không có code để xem trước', tone);
+    }
+
     function queueSourceCodes(items) {
       const codes = items.map(item => String(item.code || '').trim()).filter(Boolean);
       const uniqueCodes = [];
@@ -2026,13 +2035,13 @@
       redeemAll(true);
     }
 
-    async function checkSourceNow() {
+    async function checkSourceNow(previewOnly = false) {
       if (sourceCheckInFlight) return;
       sourceCheckInFlight = true;
 
       try {
-        syncAutoSourceUi(autoSourceEnabled ? 'Đang kiểm tra nguồn code…' : 'Đang kiểm tra thủ công…', 'warn');
-        appendSourceLog('Bắt đầu kiểm tra nguồn code', 'info', autoSourceEnabled ? 'Chế độ auto đang bật' : 'Chế độ kiểm tra thủ công');
+        syncAutoSourceUi(previewOnly ? 'Đang kiểm tra và xem trước…' : (autoSourceEnabled ? 'Đang kiểm tra nguồn code…' : 'Đang kiểm tra thủ công…'), 'warn');
+        appendSourceLog('Bắt đầu kiểm tra nguồn code', 'info', previewOnly ? 'Chế độ xem trước' : (autoSourceEnabled ? 'Chế độ auto đang bật' : 'Chế độ kiểm tra thủ công'));
         const res = await fetch('/api/source/codes?activeOnly=1');
         const rawBody = await res.text();
         let data;
@@ -2050,18 +2059,22 @@
         const activeCodes = codes.filter(item => item && item.code);
         const activeCount = typeof data.activeCount === 'number' ? data.activeCount : activeCodes.length;
         const newItems = activeCodes.filter(item => !sourceSeenCodes.has(normalizeSourceCode(item.code)));
+        const previewItems = newItems.length > 0 ? newItems : activeCodes.slice(0, 3);
+        const previewLabel = newItems.length > 0 ? 'code mới' : '3 code gần nhất';
 
         document.getElementById('sourceActiveCount').textContent = String(activeCount);
         document.getElementById('sourceLastCheck').textContent = formatSourceTime(data.updatedAt);
 
-        if (!autoSourceEnabled) {
+        if (newItems.length === 0) {
           document.getElementById('sourceNewCount').textContent = '0';
-          appendSourceLog(`Đã kiểm tra ${activeCount} code`, 'info', 'Auto đang tắt nên không lấy code mới');
-          syncAutoSourceUi(`Đã kiểm tra ${activeCount} code`, 'off');
+          persistSourceMonitorState();
+          appendSourceLog(`Không có code mới trong ${activeCount} code đang hoạt động`, 'info');
+          syncAutoSourceUi(`Đã kiểm tra ${activeCount} code`, autoSourceEnabled ? 'on' : 'off');
+          renderSourcePreview(previewItems, previewOnly ? 'warn' : 'off', previewLabel);
           return data;
         }
 
-        if (!sourceBootstrapDone) {
+        if (!sourceBootstrapDone && autoSourceEnabled && !previewOnly) {
           sourceSeenCodes = new Set(activeCodes.map(item => normalizeSourceCode(item.code)));
           sourceBootstrapDone = true;
           persistSourceMonitorState();
@@ -2071,18 +2084,15 @@
           return data;
         }
 
-        if (newItems.length > 0) {
-          newItems.forEach(item => sourceSeenCodes.add(normalizeSourceCode(item.code)));
-          persistSourceMonitorState();
-          document.getElementById('sourceNewCount').textContent = String(newItems.length);
-          queueSourceCodes(newItems);
-        } else {
-          document.getElementById('sourceNewCount').textContent = '0';
-          persistSourceMonitorState();
-          appendSourceLog(`Không có code mới trong ${activeCount} code đang hoạt động`, 'info');
-          syncAutoSourceUi(`Đã kiểm tra ${activeCount} code`, autoSourceEnabled ? 'on' : 'off');
+        if (previewOnly || !autoSourceEnabled) {
+          renderSourcePreview(newItems, previewOnly ? 'warn' : 'off');
+          return data;
         }
 
+        newItems.forEach(item => sourceSeenCodes.add(normalizeSourceCode(item.code)));
+        persistSourceMonitorState();
+        document.getElementById('sourceNewCount').textContent = String(newItems.length);
+        queueSourceCodes(newItems);
         return data;
       } catch (err) {
         syncAutoSourceUi('Lỗi lấy nguồn code', 'off');
