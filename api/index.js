@@ -54,245 +54,6 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ============== External source codes ==============
-
-const SOURCE_SITE_URL = 'https://nhasangtaoptg.com/';
-const SOURCE_CODES_TXT_URL = 'https://nhasangtaoptg.com/codes.txt';
-const SOURCE_SITE_TIMEOUT_MS = 15000;
-
-function decodeHtmlEntities(value) {
-  return String(value || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, codePoint) => String.fromCharCode(Number(codePoint)));
-}
-
-function stripHtml(value) {
-  return decodeHtmlEntities(String(value || ''))
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function extractCodeFromButtonLabel(label) {
-  return String(label || '')
-    .replace(/^Copy\s*/i, '')
-    .replace(/\s*DIE\s*$/i, '')
-    .trim();
-}
-
-function extractCodeFromImageUrl(imageUrl) {
-  const rawUrl = String(imageUrl || '').trim();
-  if (!rawUrl) return '';
-
-  const withoutQuery = rawUrl.split(/[?#]/)[0];
-  const filename = withoutQuery.slice(withoutQuery.lastIndexOf('/') + 1);
-  const withoutExt = filename.replace(/\.png$/i, '');
-  return decodeURIComponent(withoutExt).trim();
-}
-
-function normalizeImageUrl(imageUrl) {
-  const rawUrl = String(imageUrl || '').trim();
-  if (!rawUrl) return '';
-  try {
-    return new URL(rawUrl, SOURCE_SITE_URL).href;
-  } catch {
-    return rawUrl;
-  }
-}
-
-function extractSourceCodesFromText(text) {
-  const items = [];
-  const seen = new Set();
-  const lines = String(text || '').split(/\r?\n/);
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    const match = line.match(/^(?:code|qt)\s*[^:]*:\s*(.+)$/i) || line.match(/^(.+?)\s*:\s*(.+)$/i);
-    const payload = match ? (match[2] || match[1] || '') : line;
-    const code = extractCodeFromButtonLabel(payload);
-    const key = code.toUpperCase();
-    if (!code || seen.has(key)) continue;
-    seen.add(key);
-
-    const status = match ? stripHtml(match[1] || '') : '';
-    items.push({
-      code,
-      title: code,
-      status,
-      active: true,
-      imageUrl: ''
-    });
-  }
-
-  return items;
-}
-
-function extractSourceCodes(html) {
-  const items = [];
-  const seen = new Set();
-
-  // Layout mới: các mã nằm trong #server-code .code-item với .code-text và button aria-label.
-  const codeItemRegex = /<div class=['"]code-item['"][\s\S]*?<\/div>/gi;
-  for (const match of html.matchAll(codeItemRegex)) {
-    const block = match[0];
-    const labelMatch = block.match(/<span class=['"]label['"]>([\s\S]*?)<\/span>/i);
-    const buttonMatch = block.match(/aria-label=['"]([^'"]+)['"]/i);
-    const codeTextMatch = block.match(/<span class=['"]code-text['"]>([\s\S]*?)<\/span>\s*<button/i);
-
-    const code = extractCodeFromButtonLabel(buttonMatch ? buttonMatch[1] : stripHtml(codeTextMatch ? codeTextMatch[1] : ''));
-    const key = code.toUpperCase();
-    if (!code || seen.has(key)) continue;
-    seen.add(key);
-
-    const label = stripHtml(labelMatch ? labelMatch[1] : '');
-    const title = code;
-    const status = label;
-    const active = !/h\u1ebft m\u00e3|hết mã|hết mã|expired/i.test(label);
-
-    items.push({
-      code,
-      title,
-      status,
-      active,
-      imageUrl: ''
-    });
-  }
-
-  if (items.length > 0) return items;
-
-  // Fallback cho layout card cũ nếu site quay về markup trước đó.
-  const cardRegex = /<div class=['"]product-card[^'"]*['"][\s\S]*?<img[\s\S]*?(?:data-src|src)=['"]([^'"]+\.png(?:\?[^'"]*)?)['"][\s\S]*?<div class=['"]product-title['"]>([\s\S]*?)<\/div>[\s\S]*?<div class=['"]product-price['"]>([\s\S]*?)<\/div>/gi;
-  for (const match of html.matchAll(cardRegex)) {
-    const imageUrl = normalizeImageUrl(match[1]);
-    const code = extractCodeFromImageUrl(imageUrl);
-    const key = code.toUpperCase();
-    if (!code || seen.has(key)) continue;
-    seen.add(key);
-
-    const title = stripHtml(match[2]);
-    const status = stripHtml(match[3]);
-    const active = !/h\u1ebft m\u00e3|hết mã/i.test(status);
-
-    items.push({
-      code,
-      title: title || code,
-      status,
-      active,
-      imageUrl
-    });
-  }
-
-  if (items.length > 0) return items;
-
-  // Fallback cho cấu trúc cũ hơn nếu site quay về markup trước đó.
-  const fallbackRegex = /data-src=['"]https:\/\/(?:stc-billing\.mto\.zing\.vn|scdn-stc-billing\.vnggames\.com)\/ptg\/([^'"?#]+)\.png['"]/gi;
-  for (const match of html.matchAll(fallbackRegex)) {
-    const code = match[1];
-    const key = code.toUpperCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const index = match.index || 0;
-    const window = html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 2500));
-    const titleMatch = window.match(/<div class='product-title'>([\s\S]*?)<\/div>/i);
-    const statusMatch = window.match(/<div class='product-price'>([\s\S]*?)<\/div>/i);
-    const title = stripHtml(titleMatch ? titleMatch[1] : '');
-    const status = stripHtml(statusMatch ? statusMatch[1] : '');
-    const active = !/h\u1ebft m\u00e3|hết mã/i.test(status);
-
-    items.push({
-      code,
-      title: title || code,
-      status,
-      active,
-      imageUrl: `https://stc-billing.mto.zing.vn/ptg/${code}.png`
-    });
-  }
-
-  return items;
-}
-
-async function fetchSourceCodes({ activeOnly = false } = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SOURCE_SITE_TIMEOUT_MS);
-
-  try {
-    const txtRes = await fetch(`${SOURCE_CODES_TXT_URL}?t=${Date.now()}`, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/plain,text/html;q=0.9,*/*;q=0.8',
-        'Cache-Control': 'no-cache'
-      }
-    });
-
-    if (!txtRes.ok) {
-      throw new Error(`Nguồn trả về HTTP ${txtRes.status}`);
-    }
-
-    const text = await txtRes.text();
-    let all = extractSourceCodesFromText(text);
-
-    if (all.length === 0) {
-      const htmlRes = await fetch(SOURCE_SITE_URL, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        }
-      });
-
-      if (!htmlRes.ok) {
-        throw new Error(`Nguồn HTML trả về HTTP ${htmlRes.status}`);
-      }
-
-      const html = await htmlRes.text();
-      all = extractSourceCodes(html);
-    }
-
-    const codes = activeOnly ? all.filter(item => item.active) : all;
-
-    return {
-      sourceUrl: SOURCE_CODES_TXT_URL,
-      updatedAt: new Date().toISOString(),
-      totalCount: all.length,
-      activeCount: all.filter(item => item.active).length,
-      codes
-    };
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(`Hết thời gian chờ khi lấy code từ ${SOURCE_CODES_TXT_URL}`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function handleSourceCodes(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
-
-  const activeOnly = ['1', 'true', 'yes', 'on'].includes(String(req.query?.activeOnly || '').toLowerCase());
-  try {
-    const data = await fetchSourceCodes({ activeOnly });
-    return res.json({ success: true, ...data });
-  } catch (err) {
-    console.error('Source code fetch error:', err);
-    return res.status(502).json({
-      success: false,
-      message: 'Không lấy được code từ nguồn',
-      detail: err.message,
-      sourceUrl: SOURCE_SITE_URL
-    });
-  }
-}
-
 // ============== Body parser ==============
 
 function parseBody(req) {
@@ -376,7 +137,7 @@ async function handlePlayersBulk(req, res) {
 async function handleRedeem(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const { code, delayMs, sourceAuto } = parseBody(req);
+  const { code, delayMs } = parseBody(req);
   if (!code || !code.trim()) return res.status(400).json({ success: false, message: 'Code không được để trống' });
 
   const players = await db.loadPlayers();
@@ -483,7 +244,6 @@ async function handleRedeem(req, res) {
       successCount,
       failCount,
       skippedCount: skipResultCount,
-      autoSource: !!sourceAuto,
       results
     });
   }
@@ -564,9 +324,14 @@ async function handleInit(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
   const [players, history] = await Promise.all([
     db.loadPlayers(),
-    db.loadHistory(10) // Chỉ load 10 gần nhất khi khởi tạo
+    db.loadHistory(11) // Lấy dư 1 bản ghi để biết chắc có nút "xem tất cả" hay không
   ]);
-  res.json({ success: true, players, history, hasMore: history.length === 10 });
+  res.json({
+    success: true,
+    players,
+    history: history.slice(0, 10),
+    hasMore: history.length > 10
+  });
 }
 
 // ============== Route: History ==============
@@ -599,7 +364,6 @@ module.exports = async (req, res) => {
     const url = rawUrl.replace(/\/+$/, '');
 
     if (url === '/api/init') return handleInit(req, res);
-    if (url === '/api/source/codes') return handleSourceCodes(req, res);
     if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
     if (url === '/api/players') return handlePlayers(req, res);
     if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
