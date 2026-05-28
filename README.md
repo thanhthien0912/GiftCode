@@ -19,7 +19,3 @@ npm start
 - `MONGODB_DB` — tên database
 - `ADMIN_PASSWORD` — mật khẩu xóa lịch sử
 - `PORT` — cổng chạy ứng dụng
-
-## Ghi chú
-- Ứng dụng **không còn** tính năng tự lấy code từ `nhasangtaoptg.com`.
-- Mặc định truy cập tại `http://localhost:3000`.
