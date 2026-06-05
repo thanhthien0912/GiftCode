@@ -31,6 +31,46 @@ async function redeemViaApi({ code, roleId, roleName, serverId }) {
   return formatRedeemResult(data);
 }
 
+async function runApiRedeemX2({
+  code,
+  roleId,
+  roleName,
+  serverId = '2',
+  repeatCount = 2,
+} = {}) {
+  const trimmedCode = String(code ?? '').trim();
+  const trimmedRoleId = String(roleId ?? '').trim();
+  const trimmedRoleName = String(roleName ?? '').trim() || trimmedRoleId;
+  const trimmedServerId = String(serverId ?? '2').trim() || '2';
+  const totalAttempts = Math.max(1, Number(repeatCount || 2));
+
+  if (!trimmedCode) throw new Error('Thiếu code');
+  if (!trimmedRoleId) throw new Error('Thiếu roleId');
+
+  const attempts = [];
+  for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+    const data = await redeemViaApi({
+      code: trimmedCode,
+      roleId: trimmedRoleId,
+      roleName: trimmedRoleName,
+      serverId: trimmedServerId,
+    });
+    attempts.push({ attempt, transport: 'api', ...data });
+  }
+
+  return {
+    success: true,
+    browserMode: 'api-fallback',
+    code: trimmedCode,
+    player: {
+      roleId: trimmedRoleId,
+      roleName: trimmedRoleName,
+      serverId: trimmedServerId,
+    },
+    attempts,
+  };
+}
+
 async function launchBrowser(preferHeadful = true) {
   const { chromium } = await import('playwright');
 
@@ -230,85 +270,105 @@ async function runBrowserRedeemX2({
 
   await closeActiveSession();
 
-  const { browser, mode } = await launchBrowser(true);
-  const context = await browser.newContext({ viewport: null });
-  const page = await context.newPage();
-  activeSession = { browser, context, page };
+  let browserRedeemTriggered = false;
 
-  page.setDefaultTimeout(8000);
-  page.on('dialog', async dialog => {
-    try { await dialog.accept(); } catch (_) { /* ignore */ }
-  });
+  try {
+    const { browser, mode } = await launchBrowser(true);
+    const context = await browser.newContext({ viewport: null });
+    const page = await context.newPage();
+    activeSession = { browser, context, page };
 
-  const targetUrl = `https://giftcode.vnggames.com/vn/redeem/ptg?code=${encodeURIComponent(trimmedCode)}`;
-  await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('domcontentloaded');
+    page.setDefaultTimeout(8000);
+    page.on('dialog', async dialog => {
+      try { await dialog.accept(); } catch (_) { /* ignore */ }
+    });
 
-  await chooseServer(page, trimmedServerId);
-  await fillRole(page, trimmedRoleId);
-  await fillCode(page, trimmedCode);
+    const targetUrl = `https://giftcode.vnggames.com/vn/redeem/ptg?code=${encodeURIComponent(trimmedCode)}`;
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded');
 
-  const submit = page.getByRole('button', { name: /Nhập code/i }).first();
-  const attempts = [];
+    await chooseServer(page, trimmedServerId);
+    await fillRole(page, trimmedRoleId);
+    await fillCode(page, trimmedCode);
 
-  for (let attempt = 1; attempt <= repeatCount; attempt++) {
-    const responsePromise = waitForRedeemResponse(page, 2500)
-      .then(response => ({ ok: true, response }))
-      .catch(error => ({ ok: false, error }));
+    const submit = page.getByRole('button', { name: /Nhập code/i }).first();
+    const attempts = [];
 
-    let clickError = null;
-    try {
-      await submit.click({ timeout: 3000 });
-    } catch (err) {
-      clickError = err;
+    for (let attempt = 1; attempt <= repeatCount; attempt++) {
+      const responsePromise = waitForRedeemResponse(page, 2500)
+        .then(response => ({ ok: true, response }))
+        .catch(error => ({ ok: false, error }));
+
+      let clickError = null;
+      try {
+        await submit.click({ timeout: 3000 });
+        browserRedeemTriggered = true;
+      } catch (err) {
+        clickError = err;
+      }
+
+      const outcome = await responsePromise;
+      let response;
+      if (!clickError && outcome.ok) {
+        response = outcome.response;
+      } else {
+        response = {
+          status: 200,
+          url: 'fallback-api',
+          data: await redeemViaApi({
+            code: trimmedCode,
+            roleId: trimmedRoleId,
+            roleName: trimmedRoleName,
+            serverId: trimmedServerId,
+          }),
+          raw: null,
+        };
+      }
+
+      attempts.push({ attempt, transport: response.url === 'fallback-api' ? 'api' : 'browser', ...response.data });
+
+      await dismissResultModal(page);
+
+      if (attempt < repeatCount) {
+        await page.waitForTimeout(100);
+      }
     }
 
-    const outcome = await responsePromise;
-    let response;
-    if (!clickError && outcome.ok) {
-      response = outcome.response;
-    } else {
-      response = {
-        status: 200,
-        url: 'fallback-api',
-        data: await redeemViaApi({
-          code: trimmedCode,
-          roleId: trimmedRoleId,
-          roleName: trimmedRoleName,
-          serverId: trimmedServerId,
-        }),
-        raw: null,
-      };
+    await page.bringToFront().catch(() => {});
+    if (!keepOpen) {
+      if (lingerMs > 0) {
+        await page.waitForTimeout(lingerMs);
+      }
+      await closeActiveSession();
     }
 
-    attempts.push({ attempt, transport: response.url === 'fallback-api' ? 'api' : 'browser', ...response.data });
+    return {
+      success: true,
+      browserMode: mode,
+      code: trimmedCode,
+      player: {
+        roleId: trimmedRoleId,
+        roleName: trimmedRoleName,
+        serverId: trimmedServerId,
+      },
+      attempts,
+    };
+  } catch (err) {
+    try { await closeActiveSession(); } catch (_) { /* ignore */ }
 
-    await dismissResultModal(page);
-
-    if (attempt < repeatCount) {
-      await page.waitForTimeout(100);
+    if (!browserRedeemTriggered) {
+      console.warn('[redeem-x2] browser unavailable, falling back to API:', err.message);
+      return runApiRedeemX2({
+        code: trimmedCode,
+        roleId: trimmedRoleId,
+        roleName: trimmedRoleName,
+        serverId: trimmedServerId,
+        repeatCount,
+      });
     }
+
+    throw err;
   }
-
-  await page.bringToFront().catch(() => {});
-  if (!keepOpen) {
-    if (lingerMs > 0) {
-      await page.waitForTimeout(lingerMs);
-    }
-    await closeActiveSession();
-  }
-
-  return {
-    success: true,
-    browserMode: mode,
-    code: trimmedCode,
-    player: {
-      roleId: trimmedRoleId,
-      roleName: trimmedRoleName,
-      serverId: trimmedServerId,
-    },
-    attempts,
-  };
 }
 
 module.exports = {

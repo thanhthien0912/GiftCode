@@ -1860,8 +1860,14 @@
         updateProgress(2, 2, 'Browser demo hoàn tất');
         status.textContent = successCount > 0 ? 'OK' : 'Lỗi';
         status.className = successCount > 0 ? 'progress-current-status ok' : 'progress-current-status fail';
+        const modeSuffix = data.browserMode === 'headless-fallback'
+          ? ' (headless fallback)'
+          : data.browserMode === 'api-fallback'
+            ? ' (API fallback)'
+            : '';
+
         showToast(
-          `Browser demo cho ${player.roleName || player.roleId}: ${successCount} OK, ${failCount} lỗi${data.browserMode === 'headless-fallback' ? ' (headless fallback)' : ''}`,
+          `Browser demo cho ${player.roleName || player.roleId}: ${successCount} OK, ${failCount} lỗi${modeSuffix}`,
           successCount > 0 ? 'success' : 'info'
         );
       } catch (err) {
