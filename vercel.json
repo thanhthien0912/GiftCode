@@ -6,6 +6,7 @@
     { "source": "/api/players/bulk", "destination": "/api/index?route=/api/players/bulk" },
     { "source": "/api/players", "destination": "/api/index?route=/api/players" },
     { "source": "/api/redeem/single", "destination": "/api/index?route=/api/redeem/single" },
+    { "source": "/api/redeem/browser-x2", "destination": "/api/index?route=/api/redeem/browser-x2" },
     { "source": "/api/redeem", "destination": "/api/index?route=/api/redeem" },
     { "source": "/api/history", "destination": "/api/index?route=/api/history" },
     { "source": "/api/history/:id", "destination": "/api/index?route=/api/history/:id&id=:id" }
