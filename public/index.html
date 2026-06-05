@@ -1457,7 +1457,7 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                 Nhập cho tất cả
               </button>
-              <button class="btn btn-teal redeem-action-btn" id="redeemTwiceBtn" onclick="redeemAllX2()" title="Mở web thật, điền ID/code và submit 2 lần cho người chơi đang chọn">
+              <button class="btn btn-teal redeem-action-btn" id="redeemTwiceBtn" onclick="redeemAllX2()" title="Xác nhận 2 lần rồi nhập code như nút thường">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 12h10M7 17h10"/></svg>
                 Nhập x2
               </button>
@@ -1750,151 +1750,21 @@
       return redeemBatch({ retryOnce: false, buttonId: 'redeemBtn' });
     }
 
-    function getBrowserDemoPlayer() {
-      if (currentPlayerHistory.roleId) {
-        return {
-          roleId: currentPlayerHistory.roleId,
-          roleName: currentPlayerHistory.roleName,
-          serverId: currentPlayerHistory.serverId || '2'
-        };
-      }
-
-      if (players.length > 0) {
-        const p = players[0];
-        return {
-          roleId: p.roleId,
-          roleName: p.roleName || p.roleId,
-          serverId: p.serverId || '2'
-        };
-      }
-
-      return null;
-    }
-
     async function redeemAllX2() {
-      return redeemBrowserDemo();
-    }
-
-    async function redeemBrowserDemo() {
       if (isRedeeming) return;
 
       const raw = document.getElementById('codeInput').value.trim();
       if (!raw) return showToast('Vui lòng nhập mã giftcode', 'error');
       if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
 
-      const player = getBrowserDemoPlayer();
-      if (!player || !player.roleId) return showToast('Không xác định được người chơi để demo browser', 'error');
-
       const codes = [...new Set(raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
       if (codes.length === 0) return showToast('Không tìm thấy code hợp lệ', 'error');
-      if (codes.length > 1) showToast('Browser demo chỉ chạy code đầu tiên trong ô nhập', 'info');
 
-      const code = codes[0];
-      const buttons = Array.from(document.querySelectorAll('.redeem-action-btn'));
-      const activeBtn = document.getElementById('redeemTwiceBtn') || buttons[0];
-      const originals = new Map(buttons.map(btn => [btn.id, btn.innerHTML]));
+      const codeLabel = codes.length === 1 ? codes[0] : `${codes[0]} (+${codes.length - 1})`;
+      if (!confirm(`Xác nhận lần 1: nhập code ${codeLabel} cho tất cả người chơi?`)) return;
+      if (!confirm('Xác nhận lần 2: tiếp tục chạy luồng nhập bình thường?')) return;
 
-      isRedeeming = true;
-      buttons.forEach(btn => { btn.disabled = true; });
-
-      const progress = document.getElementById('progressContainer');
-      progress.classList.add('active');
-      resetProgressDetail(2);
-      setCurrentPlayer({ roleId: player.roleId, roleName: player.roleName, current: 0, total: 2, skipped: false });
-      updateProgress(0, 2, `Mở browser demo cho ${code}...`);
-      const status = document.getElementById('progressCurrentStatus');
-      status.textContent = 'Mở web';
-      status.className = 'progress-current-status pending';
-      document.getElementById('progressCurrentMeta').textContent = `ID ${player.roleId} · Server ${player.serverId || '2'}`;
-
-      try {
-        if (activeBtn) {
-          activeBtn.innerHTML = `<span class="spinner"></span> ${code}`;
-        }
-
-        const res = await fetch('/api/redeem/browser-x2', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            roleId: player.roleId,
-            roleName: player.roleName,
-            serverId: player.serverId || '2',
-            repeatCount: 2,
-            keepOpen: false,
-            lingerMs: 300
-          })
-        });
-
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !data.success) {
-          const message = (data && data.message) || 'Browser automation thất bại';
-          showToast(message, 'error');
-          updateProgress(0, 2, 'Browser demo lỗi');
-          status.textContent = 'Lỗi';
-          status.className = 'progress-current-status fail';
-          return;
-        }
-
-        const attempts = Array.isArray(data.attempts) ? data.attempts : [];
-        const successCount = attempts.filter(a => a && a.success).length;
-        const failCount = attempts.filter(a => a && !a.success).length;
-
-        if (attempts.length > 0) {
-          showResults({
-            total: attempts.length,
-            successCount,
-            failCount,
-            results: attempts.map(a => ({
-              roleId: data.player?.roleId || player.roleId,
-              roleName: data.player?.roleName || player.roleName,
-              success: !!a.success,
-              errorCode: a.errorCode,
-              message: a.message,
-              detail: a.detail,
-              attempt: a.attempt
-            }))
-          });
-        }
-
-        updateProgress(2, 2, 'Browser demo hoàn tất');
-        status.textContent = successCount > 0 ? 'OK' : 'Lỗi';
-        status.className = successCount > 0 ? 'progress-current-status ok' : 'progress-current-status fail';
-        const modeSuffix = data.browserMode === 'headless-fallback'
-          ? ' (headless fallback)'
-          : data.browserMode === 'api-fallback'
-            ? ' (API fallback)'
-            : '';
-
-        showToast(
-          `Browser demo cho ${player.roleName || player.roleId}: ${successCount} OK, ${failCount} lỗi${modeSuffix}`,
-          successCount > 0 ? 'success' : 'info'
-        );
-      } catch (err) {
-        showToast('Browser demo lỗi: ' + err.message, 'error');
-        updateProgress(0, 2, 'Browser demo lỗi');
-        status.textContent = 'Lỗi';
-        status.className = 'progress-current-status fail';
-      } finally {
-        isRedeeming = false;
-        progress.classList.remove('active');
-        let cd = 2;
-        if (activeBtn) {
-          activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
-        }
-        const timer = setInterval(() => {
-          cd--;
-          if (cd <= 0) {
-            clearInterval(timer);
-            buttons.forEach(btn => {
-              btn.disabled = false;
-              btn.innerHTML = originals.get(btn.id) || btn.innerHTML;
-            });
-          } else if (activeBtn) {
-            activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
-          }
-        }, 1000);
-      }
+      return redeemBatch({ retryOnce: false, buttonId: 'redeemTwiceBtn' });
     }
 
     async function redeemBatch({ retryOnce, buttonId }) {
