@@ -241,6 +241,9 @@
       .grid { grid-template-columns: 1fr; }
       .header-inner { padding: 12px 16px; }
       .main { padding: 16px 16px 40px; }
+      .redeem-row { flex-direction: column; align-items: stretch; }
+      .redeem-actions { width: 100%; }
+      .redeem-actions .btn { flex: 1 1 0; min-width: 0; }
     }
 
     /* ======= CARD ======= */
@@ -398,6 +401,17 @@
     }
 
     .redeem-row .field { flex: 1; }
+
+    .redeem-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-self: flex-end;
+    }
+
+    .redeem-actions .btn {
+      min-width: 132px;
+    }
 
     .code-input {
       font-family: 'JetBrains Mono', monospace;
@@ -1438,10 +1452,16 @@
               <label class="field-label">Mã Giftcode <span style="color:var(--text-tertiary);font-weight:500;text-transform:none;letter-spacing:0">(nhiều code: cách nhau bằng dấu cách hoặc xuống dòng)</span></label>
               <textarea id="codeInput" class="code-input" rows="2" placeholder="Nhập mã giftcode..." autofocus style="resize:vertical;min-height:44px"></textarea>
             </div>
-            <button class="btn btn-coral" id="redeemBtn" onclick="redeemAll()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-              Nhập cho tất cả
-            </button>
+            <div class="redeem-actions">
+              <button class="btn btn-coral redeem-action-btn" id="redeemBtn" onclick="redeemAll()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Nhập cho tất cả
+              </button>
+              <button class="btn btn-teal redeem-action-btn" id="redeemTwiceBtn" onclick="redeemAllX2()" title="Mở web thật, điền ID/code và submit 2 lần cho người chơi đang chọn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 12h10M7 17h10"/></svg>
+                Nhập x2
+              </button>
+            </div>
           </div>
           <div class="progress-wrap" id="progressContainer">
             <div class="progress-track">
@@ -1727,6 +1747,151 @@
 
     // ============== REDEEM ==============
     async function redeemAll() {
+      return redeemBatch({ retryOnce: false, buttonId: 'redeemBtn' });
+    }
+
+    function getBrowserDemoPlayer() {
+      if (currentPlayerHistory.roleId) {
+        return {
+          roleId: currentPlayerHistory.roleId,
+          roleName: currentPlayerHistory.roleName,
+          serverId: currentPlayerHistory.serverId || '2'
+        };
+      }
+
+      if (players.length > 0) {
+        const p = players[0];
+        return {
+          roleId: p.roleId,
+          roleName: p.roleName || p.roleId,
+          serverId: p.serverId || '2'
+        };
+      }
+
+      return null;
+    }
+
+    async function redeemAllX2() {
+      return redeemBrowserDemo();
+    }
+
+    async function redeemBrowserDemo() {
+      if (isRedeeming) return;
+
+      const raw = document.getElementById('codeInput').value.trim();
+      if (!raw) return showToast('Vui lòng nhập mã giftcode', 'error');
+      if (players.length === 0) return showToast('Chưa có người chơi nào', 'error');
+
+      const player = getBrowserDemoPlayer();
+      if (!player || !player.roleId) return showToast('Không xác định được người chơi để demo browser', 'error');
+
+      const codes = [...new Set(raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+      if (codes.length === 0) return showToast('Không tìm thấy code hợp lệ', 'error');
+      if (codes.length > 1) showToast('Browser demo chỉ chạy code đầu tiên trong ô nhập', 'info');
+
+      const code = codes[0];
+      const buttons = Array.from(document.querySelectorAll('.redeem-action-btn'));
+      const activeBtn = document.getElementById('redeemTwiceBtn') || buttons[0];
+      const originals = new Map(buttons.map(btn => [btn.id, btn.innerHTML]));
+
+      isRedeeming = true;
+      buttons.forEach(btn => { btn.disabled = true; });
+
+      const progress = document.getElementById('progressContainer');
+      progress.classList.add('active');
+      resetProgressDetail(2);
+      setCurrentPlayer({ roleId: player.roleId, roleName: player.roleName, current: 0, total: 2, skipped: false });
+      updateProgress(0, 2, `Mở browser demo cho ${code}...`);
+      const status = document.getElementById('progressCurrentStatus');
+      status.textContent = 'Mở web';
+      status.className = 'progress-current-status pending';
+      document.getElementById('progressCurrentMeta').textContent = `ID ${player.roleId} · Server ${player.serverId || '2'}`;
+
+      try {
+        if (activeBtn) {
+          activeBtn.innerHTML = `<span class="spinner"></span> ${code}`;
+        }
+
+        const res = await fetch('/api/redeem/browser-x2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            roleId: player.roleId,
+            roleName: player.roleName,
+            serverId: player.serverId || '2',
+            repeatCount: 2,
+            keepOpen: false,
+            lingerMs: 300
+          })
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+          const message = (data && data.message) || 'Browser automation thất bại';
+          showToast(message, 'error');
+          updateProgress(0, 2, 'Browser demo lỗi');
+          status.textContent = 'Lỗi';
+          status.className = 'progress-current-status fail';
+          return;
+        }
+
+        const attempts = Array.isArray(data.attempts) ? data.attempts : [];
+        const successCount = attempts.filter(a => a && a.success).length;
+        const failCount = attempts.filter(a => a && !a.success).length;
+
+        if (attempts.length > 0) {
+          showResults({
+            total: attempts.length,
+            successCount,
+            failCount,
+            results: attempts.map(a => ({
+              roleId: data.player?.roleId || player.roleId,
+              roleName: data.player?.roleName || player.roleName,
+              success: !!a.success,
+              errorCode: a.errorCode,
+              message: a.message,
+              detail: a.detail,
+              attempt: a.attempt
+            }))
+          });
+        }
+
+        updateProgress(2, 2, 'Browser demo hoàn tất');
+        status.textContent = successCount > 0 ? 'OK' : 'Lỗi';
+        status.className = successCount > 0 ? 'progress-current-status ok' : 'progress-current-status fail';
+        showToast(
+          `Browser demo cho ${player.roleName || player.roleId}: ${successCount} OK, ${failCount} lỗi${data.browserMode === 'headless-fallback' ? ' (headless fallback)' : ''}`,
+          successCount > 0 ? 'success' : 'info'
+        );
+      } catch (err) {
+        showToast('Browser demo lỗi: ' + err.message, 'error');
+        updateProgress(0, 2, 'Browser demo lỗi');
+        status.textContent = 'Lỗi';
+        status.className = 'progress-current-status fail';
+      } finally {
+        isRedeeming = false;
+        progress.classList.remove('active');
+        let cd = 2;
+        if (activeBtn) {
+          activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
+        }
+        const timer = setInterval(() => {
+          cd--;
+          if (cd <= 0) {
+            clearInterval(timer);
+            buttons.forEach(btn => {
+              btn.disabled = false;
+              btn.innerHTML = originals.get(btn.id) || btn.innerHTML;
+            });
+          } else if (activeBtn) {
+            activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
+          }
+        }, 1000);
+      }
+    }
+
+    async function redeemBatch({ retryOnce, buttonId }) {
       if (isRedeeming) return;
 
       const raw = document.getElementById('codeInput').value.trim();
@@ -1738,10 +1903,13 @@
       if (codes.length === 0) return showToast('Không tìm thấy code hợp lệ', 'error');
 
       const delayMs = parseInt(document.getElementById('delayMs').value) || 1000;
+      const retryDelayMs = 1500;
+      const buttons = Array.from(document.querySelectorAll('.redeem-action-btn'));
+      const activeBtn = document.getElementById(buttonId) || buttons[0];
+      const originals = new Map(buttons.map(btn => [btn.id, btn.innerHTML]));
 
       isRedeeming = true;
-      const btn = document.getElementById('redeemBtn');
-      btn.disabled = true;
+      buttons.forEach(btn => { btn.disabled = true; });
 
       const progress = document.getElementById('progressContainer');
       progress.classList.add('active');
@@ -1753,6 +1921,7 @@
         for (let i = 0; i < codes.length; i++) {
           const code = codes[i];
           const codeLabel = `[${i + 1}/${codes.length}] ${code}`;
+          const retrySuffix = retryOnce ? ' · tự retry 1 lần nếu lỗi tạm thời' : '';
 
           const prior = findPriorCode(code);
           if (prior && prior.uniquePlayersSucceeded >= players.length) {
@@ -1761,15 +1930,17 @@
             continue;
           }
 
-          btn.innerHTML = `<span class="spinner"></span> ${codeLabel}`;
-          updateProgress(0, players.length, `${codeLabel} — đang bắt đầu...`);
+          if (activeBtn) {
+            activeBtn.innerHTML = `<span class="spinner"></span> ${codeLabel}`;
+          }
+          updateProgress(0, players.length, `${codeLabel}${retrySuffix} — đang bắt đầu...`);
           resetProgressDetail(players.length);
 
           try {
             const res = await fetch('/api/redeem', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code, delayMs })
+              body: JSON.stringify({ code, delayMs, retryOnce, retryDelayMs })
             });
 
             if (!res.ok || !res.body) {
@@ -1818,23 +1989,32 @@
           showResults(aggregated[aggregated.length - 1].data);
         }
 
-        if (codes.length > 1) {
-          showToast(`Đã xử lý ${codes.length} code: ${okCodes} OK, ${skipCodes} bỏ qua, ${failCodes} lỗi`, okCodes > 0 ? 'success' : 'info');
+        if (codes.length > 1 || retryOnce) {
+          showToast(
+            retryOnce
+              ? `Đã xử lý ${codes.length} code với tự retry 1 lần: ${okCodes} OK, ${skipCodes} bỏ qua, ${failCodes} lỗi`
+              : `Đã xử lý ${codes.length} code: ${okCodes} OK, ${skipCodes} bỏ qua, ${failCodes} lỗi`,
+            okCodes > 0 ? 'success' : 'info'
+          );
         }
       } finally {
         isRedeeming = false;
         progress.classList.remove('active');
         // Cooldown 5s chống spam
         let cd = 5;
-        btn.innerHTML = `⏳ Chờ ${cd}s...`;
+        if (activeBtn) {
+          activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
+        }
         const timer = setInterval(() => {
           cd--;
           if (cd <= 0) {
             clearInterval(timer);
-            btn.disabled = false;
-            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Nhập cho tất cả`;
-          } else {
-            btn.innerHTML = `⏳ Chờ ${cd}s...`;
+            buttons.forEach(btn => {
+              btn.disabled = false;
+              btn.innerHTML = originals.get(btn.id) || btn.innerHTML;
+            });
+          } else if (activeBtn) {
+            activeBtn.innerHTML = `⏳ Chờ ${cd}s...`;
           }
         }, 1000);
       }
@@ -1940,7 +2120,7 @@
       const row = document.createElement('div');
       const cls = result.skipped ? 'skip' : (result.success ? 'ok' : 'fail');
       row.className = `progress-log-row ${cls}`;
-      const tag = result.skipped ? '<span class="tag">đã nhập</span>' : '';
+      const tag = result.skipped ? '<span class="tag">đã nhập</span>' : (result.retried ? '<span class="tag">retry</span>' : '');
       row.innerHTML = `
         <span class="dot"></span>
         <span class="name">${escapeHtml(result.roleName || result.roleId)}</span>
@@ -1994,11 +2174,13 @@
         const tagCls = r.skipped ? 'fail' : (r.success ? 'ok' : 'fail');
         const tagLbl = r.skipped ? 'SKIP' : (r.success ? 'OK' : 'FAIL');
         const rowCls = r.skipped ? 'fail' : (r.success ? 'ok' : 'fail');
+        const attemptNote = r.attempt ? ' <span style="color:var(--indigo);font-size:11px">(lần ' + escapeHtml(String(r.attempt)) + ')</span>' : '';
+        const retryNote = r.retried ? ' <span style="color:var(--indigo);font-size:11px">(tự retry 1 lần)</span>' : '';
         return `
           <div class="result-row ${rowCls}" ${r.skipped ? 'style="opacity:.7"' : ''}>
             <span class="result-tag ${tagCls}">${tagLbl}</span>
             <span class="result-id">${escapeHtml(r.roleName && r.roleName !== r.roleId ? r.roleName : '')}${r.roleName && r.roleName !== r.roleId ? ' · ' : ''}ID: ${escapeHtml(r.roleId)}</span>
-            <span class="result-msg">${escapeHtml(r.message)}${r.detail && r.detail !== r.message ? ' <span style="color:var(--text-tertiary);font-size:11px">(' + escapeHtml(r.detail) + ')</span>' : ''}</span>
+            <span class="result-msg">${escapeHtml(r.message)}${attemptNote}${retryNote}${r.detail && r.detail !== r.message ? ' <span style="color:var(--text-tertiary);font-size:11px">(' + escapeHtml(r.detail) + ')</span>' : ''}</span>
           </div>
         `;
       }).join('');

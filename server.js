@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.all('/api/{*path}', (req, res) => handler(req, res));
+app.all(/^\/api(?:\/.*)?$/, (req, res) => handler(req, res));
 
 app.listen(PORT, () => {
   console.log(`🎮 GiftCode Bot → http://localhost:${PORT}`);

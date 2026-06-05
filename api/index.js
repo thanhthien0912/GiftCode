@@ -1,32 +1,11 @@
 const crypto = require('crypto');
 const db = require('./db');
+const { formatRedeemResult } = require('./redeemMessages');
+const { runBrowserRedeemX2 } = require('./browserAutomation');
 
 function uuidv4() { return crypto.randomUUID(); }
 
 // ============== VNG API ==============
-
-const ERROR_MESSAGES = {
-  1: 'Thành công! Kiểm tra hộp thư trong game.',
-  1002: 'Không tìm thấy thông tin nhân vật.',
-  2102: 'Nhận quà không thành công.',
-  2105: 'Nhân vật không tồn tại hoặc đang offline.',
-  2106: 'Mã code không tồn tại.',
-  2107: 'Mã code đã hết hạn.',
-  2108: 'Mã code đã được sử dụng.',
-  2109: 'Bạn đã nhận loại mã này rồi.',
-  2110: 'Nhập trùng loại mã hoặc mã đã được sử dụng.',
-  2111: 'Nhận quà không thành công.',
-  2113: 'Không tìm thấy thông tin nhân vật.',
-  2114: 'Tài khoản đã bị khóa.',
-  2115: 'Định dạng mã không hợp lệ.',
-  2116: 'Không tìm thấy dữ liệu.',
-  2117: 'Mã đã đạt giới hạn lượt nhập.',
-  2119: 'Mã code không hợp lệ.',
-  2120: 'Lỗi khi nhận quà.',
-  2121: 'Vượt quá số lần nhập cho loại mã này.',
-  2126: 'Mã không áp dụng cho server của bạn.',
-  2127: 'Đã nhận mã cho chuỗi sự kiện này rồi.'
-};
 
 async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
   const res = await fetch('https://vgrapi-sea.vnggames.com/coordinator/api/v1/code/redeem', {
@@ -42,17 +21,28 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
     body: JSON.stringify({ serverId, gameCode, roleId, roleName, code })
   });
   const data = await res.json();
-  const viMessage = ERROR_MESSAGES[data.errorCode];
-  const rawMessage = data.description || data.message || '';
-  return {
-    success: data.errorCode === 1,
-    errorCode: data.errorCode,
-    message: viMessage || rawMessage || 'Lỗi không xác định',
-    detail: rawMessage
-  };
+  return formatRedeemResult(data);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function isRetryableRedeemResult(result) {
+  if (!result || result.success) return false;
+  const msg = `${result.message || ''} ${result.detail || ''}`.toLowerCase();
+  return result.errorCode === 2117
+    || msg.includes('vượt quá số lần nhập')
+    || msg.includes('quantity exhausted');
+}
+
+async function redeemCodeWithRetry(payload, retryOnce = false, retryDelayMs = 1500) {
+  const first = await redeemCode(payload);
+  if (!retryOnce || first.success || !isRetryableRedeemResult(first)) {
+    return { result: first, attempts: 1, retried: false };
+  }
+  await sleep(Math.max(retryDelayMs, 500));
+  const second = await redeemCode(payload);
+  return { result: second, attempts: 2, retried: true, firstResult: first };
+}
 
 // ============== Body parser ==============
 
@@ -137,7 +127,7 @@ async function handlePlayersBulk(req, res) {
 async function handleRedeem(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const { code, delayMs } = parseBody(req);
+  const { code, delayMs, retryOnce, retryDelayMs } = parseBody(req);
   if (!code || !code.trim()) return res.status(400).json({ success: false, message: 'Code không được để trống' });
 
   const players = await db.loadPlayers();
@@ -208,8 +198,17 @@ async function handleRedeem(req, res) {
     if (lastCalledIdx !== -1) await sleep(delay);
 
     try {
-      const r = await redeemCode({ code: trimmedCode, roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' });
-      entry = { roleId: p.roleId, roleName: p.roleName, ...r };
+      const retryDelay = Math.max(retryDelayMs || 1500, 500);
+      const { result: r, attempts, retried, firstResult } = await redeemCodeWithRetry(
+        { code: trimmedCode, roleId: p.roleId, roleName: p.roleName, serverId: p.serverId, gameCode: '661' },
+        !!retryOnce,
+        retryDelay
+      );
+      entry = { roleId: p.roleId, roleName: p.roleName, attempts, retried, ...r };
+      if (retried && firstResult && !firstResult.success) {
+        entry.initialErrorCode = firstResult.errorCode;
+        entry.initialMessage = firstResult.message;
+      }
     } catch (err) {
       entry = { roleId: p.roleId, roleName: p.roleName, success: false, errorCode: -1, message: err.message };
     }
@@ -257,7 +256,7 @@ async function handleRedeem(req, res) {
 async function handleRedeemSingle(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
-  const { code, roleId, roleName, serverId } = parseBody(req);
+  const { code, roleId, roleName, serverId, retryOnce, retryDelayMs } = parseBody(req);
   if (!code || !roleId) return res.status(400).json({ success: false, message: 'Code và roleId là bắt buộc' });
 
   const trimmedCode = String(code).trim();
@@ -265,8 +264,17 @@ async function handleRedeemSingle(req, res) {
   const rname = (roleName || roleId).toString();
 
   try {
-    const result = await redeemCode({ code: trimmedCode, roleId, roleName: rname, serverId: sid, gameCode: '661' });
-    const entry = { roleId, roleName: rname, serverId: sid, ...result };
+    const retryDelay = Math.max(retryDelayMs || 1500, 500);
+    const { result, attempts, retried, firstResult } = await redeemCodeWithRetry(
+      { code: trimmedCode, roleId, roleName: rname, serverId: sid, gameCode: '661' },
+      !!retryOnce,
+      retryDelay
+    );
+    const entry = { roleId, roleName: rname, serverId: sid, attempts, retried, ...result };
+    if (retried && firstResult && !firstResult.success) {
+      entry.initialErrorCode = firstResult.errorCode;
+      entry.initialMessage = firstResult.message;
+    }
     const success = !!result.success;
 
     // Ghi history single-redeem với cùng shape như redeem all
@@ -302,7 +310,59 @@ async function handleRedeemSingle(req, res) {
   }
 }
 
-// ============== Auth helper ==============
+
+async function handleRedeemBrowserX2(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  const { code, roleId, roleName, serverId, repeatCount } = parseBody(req);
+  if (!code || !String(code).trim()) return res.status(400).json({ success: false, message: 'Code không được để trống' });
+  if (!roleId || !String(roleId).trim()) return res.status(400).json({ success: false, message: 'Thiếu roleId' });
+
+  try {
+    const result = await runBrowserRedeemX2({
+      code: String(code).trim(),
+      roleId: String(roleId).trim(),
+      roleName: String(roleName || roleId).trim(),
+      serverId: serverId || '2',
+      repeatCount: Number(repeatCount || 2),
+      keepOpen: !!parseBody(req).keepOpen,
+      lingerMs: Number(parseBody(req).lingerMs || 2000),
+    });
+
+    const attempts = Array.isArray(result.attempts) ? result.attempts : [];
+    const successCount = attempts.filter(a => a && a.success).length;
+    const failCount = attempts.filter(a => a && !a.success).length;
+
+    await db.addHistory({
+      id: uuidv4(),
+      code: String(code).trim(),
+      timestamp: new Date().toISOString(),
+      totalPlayers: 1,
+      successCount,
+      failCount,
+      skippedCount: 0,
+      single: true,
+      autoSource: true,
+      source: 'browser-x2',
+      browserAutomation: true,
+      browserMode: result.browserMode,
+      results: attempts.map(a => ({
+        roleId: String(roleId).trim(),
+        roleName: String(roleName || roleId).trim(),
+        serverId: serverId || '2',
+        attempt: a.attempt,
+        success: !!a.success,
+        errorCode: a.errorCode,
+        message: a.message,
+        detail: a.detail,
+      })),
+    });
+
+    return res.json({ success: true, ...result, successCount, failCount });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Browser automation failed: ' + err.message });
+  }
+}
 
 function checkAdminPassword(req, res) {
   const adminPw = process.env.ADMIN_PASSWORD;
@@ -362,14 +422,16 @@ module.exports = async (req, res) => {
     // Vercel rewrites lose original URL — use query param 'route' as source of truth
     const rawUrl = req.query?.route || req.url.split('?')[0];
     const url = rawUrl.replace(/\/+$/, '');
+    const routeUrl = url.startsWith('/api') ? url : `/api${url.startsWith('/') ? '' : '/'}${url}`;
 
-    if (url === '/api/init') return handleInit(req, res);
-    if (url === '/api/players/bulk') return handlePlayersBulk(req, res);
-    if (url === '/api/players') return handlePlayers(req, res);
-    if (url === '/api/redeem/single') return handleRedeemSingle(req, res);
-    if (url === '/api/redeem') return handleRedeem(req, res);
-    if (url === '/api/history') return handleHistory(req, res);
-    if (url.startsWith('/api/history/')) return handleHistoryItem(req, res, url.slice('/api/history/'.length));
+    if (routeUrl === '/api/init') return handleInit(req, res);
+    if (routeUrl === '/api/players/bulk') return handlePlayersBulk(req, res);
+    if (routeUrl === '/api/players') return handlePlayers(req, res);
+    if (routeUrl === '/api/redeem/single') return handleRedeemSingle(req, res);
+    if (routeUrl === '/api/redeem/browser-x2') return handleRedeemBrowserX2(req, res);
+    if (routeUrl === '/api/redeem') return handleRedeem(req, res);
+    if (routeUrl === '/api/history') return handleHistory(req, res);
+    if (routeUrl.startsWith('/api/history/')) return handleHistoryItem(req, res, routeUrl.slice('/api/history/'.length));
     res.status(404).json({ success: false, message: 'Not found' });
   } catch (err) {
     console.error('Server error:', err);
