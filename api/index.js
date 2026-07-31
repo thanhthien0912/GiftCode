@@ -15,8 +15,8 @@ async function redeemCode({ code, roleId, roleName, serverId, gameCode }) {
       'Accept': 'application/json, text/plain, */*',
       'X-Client-Region': 'VN',
       'x-request-id': uuidv4(),
-      'Origin': 'https://giftcode.vnggames.com',
-      'Referer': 'https://giftcode.vnggames.com/'
+      'Origin': 'https://levelup.vnggames.com',
+      'Referer': 'https://levelup.vnggames.com/vn/vi/games/ptg/redeem'
     },
     body: JSON.stringify({ serverId, gameCode, roleId, roleName, code })
   });

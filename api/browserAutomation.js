@@ -22,8 +22,8 @@ async function redeemViaApi({ code, roleId, roleName, serverId }) {
       'Accept': 'application/json, text/plain, */*',
       'X-Client-Region': 'VN',
       'x-request-id': crypto.randomUUID(),
-      'Origin': 'https://giftcode.vnggames.com',
-      'Referer': 'https://giftcode.vnggames.com/'
+      'Origin': 'https://levelup.vnggames.com',
+      'Referer': 'https://levelup.vnggames.com/vn/vi/games/ptg/redeem'
     },
     body: JSON.stringify({ serverId, gameCode: '661', roleId, roleName, code })
   });
@@ -214,6 +214,7 @@ async function fillCode(page, code) {
   if (!text) return false;
 
   const candidates = [
+    page.getByRole('combobox', { name: /Nhập thông tin code/i }).first(),
     page.getByRole('textbox', { name: /Nhập thông tin code/i }).first(),
     page.getByRole('textbox', { name: /Nhập code/i }).first(),
     page.locator('input[placeholder*="code" i], textarea[placeholder*="code" i], input[aria-label*="code" i], textarea[aria-label*="code" i]').first(),
@@ -283,7 +284,7 @@ async function runBrowserRedeemX2({
       try { await dialog.accept(); } catch (_) { /* ignore */ }
     });
 
-    const targetUrl = `https://giftcode.vnggames.com/vn/redeem/ptg?code=${encodeURIComponent(trimmedCode)}`;
+    const targetUrl = `https://levelup.vnggames.com/vn/vi/games/ptg/redeem?code=${encodeURIComponent(trimmedCode)}`;
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('domcontentloaded');
 
@@ -291,7 +292,7 @@ async function runBrowserRedeemX2({
     await fillRole(page, trimmedRoleId);
     await fillCode(page, trimmedCode);
 
-    const submit = page.getByRole('button', { name: /Nhập code/i }).first();
+    const submit = page.getByRole('button', { name: /^Nhập Code$/ }).first();
     const attempts = [];
 
     for (let attempt = 1; attempt <= repeatCount; attempt++) {
