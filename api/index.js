@@ -62,6 +62,8 @@ async function handlePlayers(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (!checkAdminPassword(req, res)) return;
+
     const { roleId, roleName, serverId } = parseBody(req);
     if (!roleId) return res.status(400).json({ success: false, message: 'roleId là bắt buộc' });
 
@@ -87,6 +89,8 @@ async function handlePlayers(req, res) {
 
 async function handlePlayersBulk(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  if (!checkAdminPassword(req, res)) return;
 
   const { roleIds, players: playerEntries, serverId } = parseBody(req);
   const sid = serverId || '2';
