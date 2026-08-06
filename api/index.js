@@ -409,6 +409,10 @@ async function handleHistory(req, res) {
 async function handleHistoryItem(req, res, id) {
   if (req.method !== 'DELETE') return res.status(405).json({ success: false, message: 'Method not allowed' });
   if (!id) return res.status(400).json({ success: false, message: 'Thiếu id' });
+  const { confirmId } = parseBody(req);
+  if (!confirmId || String(confirmId).trim() !== String(id).trim()) {
+    return res.status(400).json({ success: false, message: 'ID xác nhận không khớp' });
+  }
   if (!checkAdminPassword(req, res)) return;
   const ok = await db.removeHistory(id);
   if (!ok) return res.status(404).json({ success: false, message: 'Không tìm thấy lịch sử' });

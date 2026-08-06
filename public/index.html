@@ -2144,6 +2144,12 @@
       if (!currentHistoryId) return;
       const item = history.find(h => h.id === currentHistoryId);
       const codeLabel = item ? item.code : 'này';
+      const confirmId = prompt(`Nhập ID lịch sử để xác nhận xoá code "${codeLabel}":\n${currentHistoryId}`);
+      if (confirmId === null) return;
+      if (confirmId.trim() !== currentHistoryId) {
+        showToast('ID xác nhận không khớp', 'error');
+        return;
+      }
       const password = prompt(`Nhập mật khẩu admin để xóa lịch sử code "${codeLabel}":`);
       if (!password) return;
 
@@ -2151,7 +2157,7 @@
         const res = await fetch('/api/history/' + encodeURIComponent(currentHistoryId), {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
+          body: JSON.stringify({ confirmId: confirmId.trim(), password })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
